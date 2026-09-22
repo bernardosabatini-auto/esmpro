@@ -38,10 +38,14 @@ CKPT_DIR = PROJECT / "data" / "phase1_dataset"
 # 52 GB for 79,653 proteins; the H200 nodes have 1.5 TB).
 # ---------------------------------------------------------------------------
 class RamSplit:
-    def __init__(self, split, n=0, workers=8, keep_ca=False, seed=42):
+    def __init__(self, split, n=0, workers=8, keep_ca=False, seed=42, shard=(0, 1)):
         ds = ProteinDatasetFAPE(H5_PATH, split)
         torch.manual_seed(seed)
         idx = torch.randperm(len(ds))[:n].tolist() if n else list(range(len(ds)))
+        rank, world = shard
+        if world > 1:   # equal-sized shards so every rank runs the same step count
+            per = len(idx) // world
+            idx = idx[rank::world][:per]
         self.names = [ds.names[i] for i in idx]
         N = len(idx)
         self.esm = torch.empty(N, MAX_LEN, D_ESM, dtype=torch.float16)
@@ -306,22 +310,42 @@ def parse_args():
 
 
 def main(a):
+    # Multi-GPU: launched with torchrun, one process per GPU. Each rank caches
+    # its own equal shard of the train split; rank 0 also holds val, evaluates,
+    # prints and checkpoints. --batch-size is PER GPU.
+    ddp = "WORLD_SIZE" in os.environ and int(os.environ["WORLD_SIZE"]) > 1
+    rank, world = (int(os.environ["RANK"]), int(os.environ["WORLD_SIZE"])) if ddp else (0, 1)
+    if ddp:
+        import torch.distributed as dist
+        dist.init_process_group("nccl")
+        torch.cuda.set_device(int(os.environ["LOCAL_RANK"]))
+    is_main = rank == 0
     torch.manual_seed(0); np.random.seed(0)
     torch.set_float32_matmul_precision("high")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print("=" * 60 + "\nGate 7: sequence-conditioned latent flow\n" + "=" * 60, flush=True)
+    device = torch.device(f"cuda:{int(os.environ.get('LOCAL_RANK', 0))}" if torch.cuda.is_available() else "cpu")
+    def say(*x):
+        if is_main: print(*x, flush=True)
+    say("=" * 60 + "\nGate 7: sequence-conditioned latent flow\n" + "=" * 60)
     arch = {"d_model": a.d_model, "n_layers": a.n_layers, "n_heads": a.n_heads,
             "dropout": a.dropout, "self_cond": not a.no_self_cond}
     net = LatentFlowNet(**arch).to(device)
     ema = copy.deepcopy(net).eval()
     for p in ema.parameters(): p.requires_grad = False
     n_params = sum(p.numel() for p in net.parameters())
-    print(f"  {a.label}: {n_params/1e6:.1f}M params, arch {arch}", flush=True)
+    say(f"  {a.label}: {n_params/1e6:.1f}M params, arch {arch}, world {world}, "
+        f"batch {a.batch_size}/GPU = {a.batch_size*world} effective")
+    if ddp:
+        from torch.nn.parallel import DistributedDataParallel as DDP
+        net = DDP(net, device_ids=[device.index])
+        raw = net.module
+    else:
+        raw = net
 
-    print("Caching data in RAM...", flush=True)
-    train = RamSplit("train", a.n_train, a.workers)
-    val = RamSplit("val", a.n_val, a.workers, keep_ca=True)
-    print(f"  train {len(train)}  val {len(val)}  batch {a.batch_size}", flush=True)
+    say("Caching data in RAM...")
+    train = RamSplit("train", a.n_train, a.workers, shard=(rank, world))
+    val = RamSplit("val", a.n_val, a.workers, keep_ca=True) if is_main else None
+    say(f"  train {len(train)}/rank  val {len(val) if val else 0}  batch {a.batch_size}")
+    torch.manual_seed(1000 + rank)   # decorrelate flow noise / t across ranks (weights already synced)
 
     opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95))
     steps_per_epoch = math.ceil(len(train) / a.batch_size); total = steps_per_epoch * a.epochs
@@ -330,7 +354,7 @@ def main(a):
         pr = (step - a.warmup) / max(total - a.warmup, 1)
         return 0.5 * (1 + math.cos(math.pi * min(pr, 1.0)))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_at)
-    dec = None if a.smoke else load_decoder(device)
+    dec = None if (a.smoke or not is_main) else load_decoder(device)
     cfg_ws = [float(x) for x in a.cfg_w.split(",")]
 
     start, best_tm, best_ep, history, step = 0, -1.0, 0, [], 0
@@ -338,11 +362,12 @@ def main(a):
     if a.resume:
         st = torch.load(str(CKPT_DIR / a.resume), weights_only=False, map_location=device)
         if st["arch"] != arch: raise ValueError(f"arch mismatch: {st['arch']} vs {arch}")
-        net.load_state_dict(st["net"]); ema.load_state_dict(st["ema"]); opt.load_state_dict(st["opt"])
+        raw.load_state_dict(st["net"]); ema.load_state_dict(st["ema"]); opt.load_state_dict(st["opt"])
         sched.load_state_dict(st["sched"]); start, step = st["epoch"], st["step"]
         best_tm, best_ep, history = st["best_tm"], st["best_ep"], st["history"]
-        gen.set_state(st["gen"]); torch.set_rng_state(st["torch_rng"])
-        print(f"  RESUMED at epoch {start}, step {step}, best TM {best_tm:.3f}", flush=True)
+        gen.set_state(st["gen"])
+        if is_main: torch.set_rng_state(st["torch_rng"])
+        say(f"  RESUMED at epoch {start}, step {step}, best TM {best_tm:.3f}")
 
     for epoch in range(start, a.epochs):
         t0 = time.perf_counter(); net.train(); tl, nb = 0.0, 0
@@ -354,15 +379,21 @@ def main(a):
             gn = torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
             opt.step(); sched.step(); step += 1
             with torch.no_grad():
-                for pe, pn in zip(ema.parameters(), net.parameters()):
+                for pe, pn in zip(ema.parameters(), raw.parameters()):
                     pe.lerp_(pn, 1 - a.ema)
             tl += loss.item(); nb += 1
             if nb == 1 or nb % 200 == 0:
                 mem = torch.cuda.max_memory_allocated() / 1e9 if device.type == "cuda" else 0
-                print(f"    batch {nb}: loss={loss.item():.4f} gnorm={gn:.2f} lr={sched.get_last_lr()[0]:.2e} "
-                      f"peak GPU={mem:.1f} GB", flush=True)
+                say(f"    batch {nb}: loss={loss.item():.4f} gnorm={gn:.2f} lr={sched.get_last_lr()[0]:.2e} "
+                    f"peak GPU={mem:.1f} GB")
             if a.smoke and nb >= 3: break
         train_loss = tl / max(nb, 1)
+
+        if not is_main:
+            # workers: only need to know whether rank 0 decided to stop
+            stop = torch.zeros(1, device=device); dist.broadcast(stop, 0)
+            if stop.item() > 0: break
+            continue
 
         # validation flow loss with the EMA weights
         ema.eval(); vl, vn = 0.0, 0
@@ -377,7 +408,7 @@ def main(a):
         val_loss = vl / max(vn, 1)
         rec = {"epoch": epoch + 1, "train": train_loss, "val": val_loss, "step": step}
         el = time.perf_counter() - t0
-        print(f"  {epoch+1:4d}  train {train_loss:.4f}  val {val_loss:.4f}  {el:6.0f}s", flush=True)
+        say(f"  {epoch+1:4d}  train {train_loss:.4f}  val {val_loss:.4f}  {el:6.0f}s")
 
         tm_for_select = float("nan")
         if dec is not None and (epoch + 1) % a.eval_every == 0:
@@ -402,7 +433,7 @@ def main(a):
         history.append(rec)
 
         last = CKPT_DIR / f"last_{a.label}.ckpt"
-        torch.save({"net": net.state_dict(), "ema": ema.state_dict(), "opt": opt.state_dict(),
+        torch.save({"net": raw.state_dict(), "ema": ema.state_dict(), "opt": opt.state_dict(),
                     "sched": sched.state_dict(), "epoch": epoch + 1, "step": step,
                     "best_tm": best_tm, "best_ep": best_ep, "history": history, "arch": arch,
                     "gen": gen.get_state(), "torch_rng": torch.get_rng_state()}, str(last) + ".tmp")
@@ -410,10 +441,14 @@ def main(a):
         json.dump({"label": a.label, "arch": arch, "n_params": n_params, "config": vars(a),
                    "best_tm": best_tm, "best_ep": best_ep, "history": history},
                   open(PROJECT / "notes" / f"gate7_{a.label}_results.json", "w"), indent=2)
-        if best_ep > 0 and (epoch + 1) - best_ep >= a.patience * a.eval_every:
-            print(f"  Early stopping on TM (best epoch {best_ep}, TM {best_tm:.3f})"); break
-        if a.smoke: break
-    print(f"\nBest TM {best_tm:.3f} at epoch {best_ep}")
+        stop_now = (best_ep > 0 and (epoch + 1) - best_ep >= a.patience * a.eval_every) or a.smoke
+        if ddp:
+            dist.broadcast(torch.tensor([1.0 if stop_now else 0.0], device=device), 0)
+        if stop_now:
+            if not a.smoke: print(f"  Early stopping on TM (best epoch {best_ep}, TM {best_tm:.3f})")
+            break
+    say(f"\nBest TM {best_tm:.3f} at epoch {best_ep}")
+    if ddp: dist.destroy_process_group()
 
 
 if __name__ == "__main__":
