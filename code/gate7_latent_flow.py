@@ -382,8 +382,12 @@ def main(a):
             gn = torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
             opt.step(); sched.step(); step += 1
             with torch.no_grad():
+                # EMA warm-up: decay ramps 0 -> a.ema over the first ~1/(1-ema)
+                # steps, otherwise a large-batch run evaluates near-random
+                # averaged weights for its first thousand steps.
+                decay = min(a.ema, (1.0 + step) / (10.0 + step))
                 for pe, pn in zip(ema.parameters(), raw.parameters()):
-                    pe.lerp_(pn, 1 - a.ema)
+                    pe.lerp_(pn, 1 - decay)
             tl += loss.item(); nb += 1
             if nb == 1 or nb % 200 == 0:
                 mem = torch.cuda.max_memory_allocated() / 1e9 if device.type == "cuda" else 0
