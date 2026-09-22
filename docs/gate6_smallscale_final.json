@@ -1,0 +1,245 @@
+{
+  "run": "small-scale corrected-FAPE, 40k",
+  "checkpoint": "smallscale_final_40k.pt",
+  "stopped": "manually at epoch 28 of 30; both FAPE and TM converged",
+  "config": {
+    "n_train": 40000,
+    "n_val": 2000,
+    "batch_size": 96,
+    "ode_steps": 3,
+    "lr": 0.0001,
+    "clamp": 20.0,
+    "frac_unclamped": 0.1,
+    "normalize_out": true,
+    "head": "10L d256, 8.2M params",
+    "warm_start": "best_fape_scaled.pt (<- best_deep10L.pt, MSE-trained)",
+    "selected_on": "fape (TM-based selection added after this run)"
+  },
+  "final": {
+    "fape": 0.8494,
+    "tm_mean": 0.427,
+    "tm_median": 0.402,
+    "tm_gt_0.5": 0.32,
+    "tm_gt_0.3": 0.83,
+    "rmsd_mean": 11.56,
+    "rmsd_median": 10.73,
+    "coverage": 1.0
+  },
+  "baselines": {
+    "true_latent": {
+      "tm": 0.997,
+      "rmsd": 0.17
+    },
+    "mean_latent": {
+      "tm": 0.061,
+      "rmsd": 20.17
+    },
+    "mse_head": {
+      "tm": 0.161,
+      "rmsd": 14.81
+    },
+    "esmfold": {
+      "rmsd": 4.33
+    }
+  },
+  "fape_history": [
+    {
+      "epoch": 1,
+      "train": 1.6629,
+      "val": 0.917,
+      "sec": 4385.5
+    },
+    {
+      "epoch": 2,
+      "train": 1.6524,
+      "val": 0.9116,
+      "sec": 5436.7
+    },
+    {
+      "epoch": 3,
+      "train": 1.6349,
+      "val": 0.9049,
+      "sec": 5799.2
+    },
+    {
+      "epoch": 4,
+      "train": 1.6241,
+      "val": 0.9012,
+      "sec": 5310.4
+    },
+    {
+      "epoch": 5,
+      "train": 1.6115,
+      "val": 0.8954,
+      "sec": 4541.7
+    },
+    {
+      "epoch": 6,
+      "train": 1.6003,
+      "val": 0.8917,
+      "sec": 4852.1
+    },
+    {
+      "epoch": 7,
+      "train": 1.5839,
+      "val": 0.8877,
+      "sec": 4383.5
+    },
+    {
+      "epoch": 8,
+      "train": 1.5769,
+      "val": 0.8837,
+      "sec": 4383.5
+    },
+    {
+      "epoch": 9,
+      "train": 1.5616,
+      "val": 0.8804,
+      "sec": 4383.5
+    },
+    {
+      "epoch": 10,
+      "train": 1.5589,
+      "val": 0.8784,
+      "sec": 4403.8
+    },
+    {
+      "epoch": 11,
+      "train": 1.5473,
+      "val": 0.8751,
+      "sec": 4864.5
+    },
+    {
+      "epoch": 12,
+      "train": 1.539,
+      "val": 0.8729,
+      "sec": 4383.6
+    },
+    {
+      "epoch": 13,
+      "train": 1.5314,
+      "val": 0.8707,
+      "sec": 4383.0
+    },
+    {
+      "epoch": 14,
+      "train": 1.5224,
+      "val": 0.8688,
+      "sec": 4382.9
+    },
+    {
+      "epoch": 15,
+      "train": 1.5233,
+      "val": 0.8679,
+      "sec": 4382.7
+    },
+    {
+      "epoch": 16,
+      "train": 1.5142,
+      "val": 0.8653,
+      "sec": 4382.4
+    },
+    {
+      "epoch": 17,
+      "train": 1.5097,
+      "val": 0.8641,
+      "sec": 4403.2
+    },
+    {
+      "epoch": 18,
+      "train": 1.5076,
+      "val": 0.8627,
+      "sec": 4407.7
+    },
+    {
+      "epoch": 19,
+      "train": 1.5028,
+      "val": 0.862,
+      "sec": 4383.8
+    },
+    {
+      "epoch": 20,
+      "train": 1.5074,
+      "val": 0.8615,
+      "sec": 4383.9
+    },
+    {
+      "epoch": 21,
+      "train": 1.4944,
+      "val": 0.8604,
+      "sec": 4384.0
+    },
+    {
+      "epoch": 22,
+      "train": 1.4964,
+      "val": 0.8598,
+      "sec": 4384.7
+    },
+    {
+      "epoch": 23,
+      "train": 1.4951,
+      "val": 0.8593,
+      "sec": 4398.7
+    },
+    {
+      "epoch": 24,
+      "train": 1.4963,
+      "val": 0.859,
+      "sec": 4399.4
+    },
+    {
+      "epoch": 25,
+      "train": 1.4923,
+      "val": 0.8585,
+      "sec": 4389.2
+    },
+    {
+      "epoch": 26,
+      "train": 1.4897,
+      "val": 0.858,
+      "sec": 4382.9
+    },
+    {
+      "epoch": 27,
+      "train": 1.4953,
+      "val": 0.858,
+      "sec": 4380.8
+    },
+    {
+      "epoch": 28,
+      "train": 1.4879,
+      "val": 0.8579,
+      "sec": 4382.7
+    }
+  ],
+  "tm_history": [
+    {
+      "epoch": 9,
+      "fape": 0.8735,
+      "tm_mean": 0.379,
+      "tm_gt_0.5": 0.2,
+      "rmsd": 12.41
+    },
+    {
+      "epoch": 16,
+      "fape": 0.8577,
+      "tm_mean": 0.411,
+      "tm_gt_0.5": 0.25,
+      "rmsd": 12.02
+    },
+    {
+      "epoch": 22,
+      "fape": 0.8512,
+      "tm_mean": 0.422,
+      "tm_gt_0.5": 0.33,
+      "rmsd": 11.7
+    },
+    {
+      "epoch": 28,
+      "fape": 0.8494,
+      "tm_mean": 0.427,
+      "tm_gt_0.5": 0.32,
+      "rmsd": 11.56
+    }
+  ]
+}

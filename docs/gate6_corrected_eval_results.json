@@ -1,0 +1,41 @@
+{
+  "ode_steps": 20,
+  "n_proteins": 200,
+  "results": [
+    {
+      "model": "true_z",
+      "fape_fixed": 0.0484174364246428,
+      "fape_broken": 0.06669393507763743,
+      "rmsd_kabsch_mean": 0.16988129696637844,
+      "rmsd_kabsch_median": 0.12344191930467888
+    },
+    {
+      "model": "mean_z",
+      "fape_fixed": 0.9648471027612686,
+      "fape_broken": 0.9616280719637871,
+      "rmsd_kabsch_mean": 20.165273966073677,
+      "rmsd_kabsch_median": 18.25734270066667
+    },
+    {
+      "model": "random_z",
+      "fape_fixed": 0.9920104891061783,
+      "fape_broken": 0.9940410777926445,
+      "rmsd_kabsch_mean": 75.5715677960467,
+      "rmsd_kabsch_median": 75.74340659302558
+    },
+    {
+      "model": "best_deep10L.pt",
+      "fape_fixed": 0.9581805467605591,
+      "fape_broken": 0.932529628276825,
+      "rmsd_kabsch_mean": 14.808241409310936,
+      "rmsd_kabsch_median": 14.26972134625175
+    },
+    {
+      "model": "best_fape_fixed.pt",
+      "fape_fixed": 0.9261801019310951,
+      "fape_broken": 0.9451326429843903,
+      "rmsd_kabsch_mean": 15.01313183277166,
+      "rmsd_kabsch_median": 13.777195309873562
+    }
+  ]
+}

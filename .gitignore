@@ -1,0 +1,7 @@
+data/
+logs/
+notes/
+ProteinAE_v1/checkpoints/
+ProteinAE_v1/output/
+__pycache__/
+*.pyc

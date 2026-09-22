@@ -1,0 +1,13 @@
+537b84f045ed9a247c97c95c64c25935  code/canonicalize.py
+54527eddd383982980e768a7106ce0d5  code/check_bundle.py
+362514e611f1ad1cf5c23e0921630792  code/gate5_build_dataset.py
+1ef9bb850076ff9be4c169fa14383449  code/gate6_100k.py
+21eadfb9bb727f49c294af1b3b289b5f  code/gate6_3di_eval.py
+3bfd3b991574669dd3b9dfaacf308f90  code/gate6_corrected_eval.py
+a2bb1436c1170d126d93c8c3f284f929  code/gate6_deep_head.py
+63f72f016631523d8f22dc0f6d35a8aa  code/gate6_extract_backbone.py
+f9fb21af00f9005e2b21f9f16f27b4f9  code/gate6_fape_train.py
+174f5c8ef9388e79310129e96c24b755  code/gate6_fold_validation.py
+8e1fb4f87b74057348182f3e1b8171ac  code/gate6_score_checkpoint.py
+c63bfc300060b036383e35b4c6834fe3  data/phase1_dataset/smallscale_final_40k.pt
+84d69c6de2c7c29de7fb61defee170bf  ProteinAE_v1/checkpoints/ae_r1_d8_v1.ckpt

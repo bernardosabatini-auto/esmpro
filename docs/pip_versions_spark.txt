@@ -1,0 +1,26 @@
+# Versions on the Spark (aarch64). The H200 is x86_64, so REBUILD rather than
+# copy the env. Match torch and lightning majors; the rest are flexible.
+biopython==1.88
+biotite==1.6.0
+einops==0.8.2
+fair-esm==2.0.0
+h5py==3.16.0
+hydra-core==1.3.6
+jaxtyping==0.3.11
+lightning-utilities==0.15.3
+lightning==2.6.6
+loguru==0.7.3
+numpy==2.4.6
+omegaconf==2.3.1
+pandas==3.0.5
+scipy==1.17.1
+torch-geometric==2.8.0.post1
+torch==2.13.0
+torch_cluster==1.6.3
+torch_scatter==2.1.2
+torch_sparse==0.6.18
+torchmetrics==1.9.0
+torchtext==0.6.0
+torchvision==0.28.0
+tqdm==4.70.0
+transformers==4.48.1
