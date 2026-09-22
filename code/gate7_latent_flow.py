@@ -477,8 +477,8 @@ def main(a):
             embed.mix_logits.data.copy_(st["mix_logits"].to(device))
         sched.load_state_dict(st["sched"]); start, step = st["epoch"], st["step"]
         best_tm, best_ep, history = st["best_tm"], st["best_ep"], st["history"]
-        gen.set_state(st["gen"])
-        if is_main: torch.set_rng_state(st["torch_rng"])
+        gen.set_state(st["gen"].cpu())                       # generator states must be CPU byte tensors
+        if is_main: torch.set_rng_state(st["torch_rng"].cpu())
         say(f"  RESUMED at epoch {start}, step {step}, best TM {best_tm:.3f}")
 
     for epoch in range(start, a.epochs):
