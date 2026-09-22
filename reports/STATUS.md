@@ -1,13 +1,13 @@
 # Live status
 
-Updated 2026-09-22 19:22 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-22 19:28 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
-| lf_174M | latent flow | 47811754 | running 3:12:33 on kempner_rtx | 38 | 0.584 (w=3.0) | 64% | 9.50 | 100% |
-| lf_459M_h200 | latent flow | 47811759 | running 3:12:31 on kempner_h200 | 34 | 0.586 (w=3.0) | 63% | 9.43 | 100% |
-| lf_459M_ddp6 | latent flow | 47816193 | running 2:36:26 on kempner_rtx | 70 | 0.614 (w=2.0) | 70% | 9.22 | 100% |
-| lf_459M | latent flow | 47811751 | running 3:12:33 on kempner_rtx | 19 | 0.560 (w=3.0) | 59% | 9.95 | 100% |
+| lf_174M | latent flow | 47811754 | running 3:18:06 on kempner_rtx | 40 | 0.560 (w=1.0) | 61% | 10.15 | 100% |
+| lf_459M_h200 | latent flow | 47811759 | running 3:18:04 on kempner_h200 | 35 | 0.586 (w=3.0) | 63% | 9.43 | 100% |
+| lf_459M | latent flow | 47811751 | ended | 19 | 0.560 (w=3.0) | 59% | 9.95 | 100% |
+| lf_459M_ddp6 | latent flow | 47816193 | ended | 71 | 0.614 (w=2.0) | 70% | 9.22 | 100% |
 | h200_cabb_bond | FAPE head | 47785127 | ended | 14 | 0.497 | 48% |  | 100% |
 | h200_full | FAPE head | 47758870 | ended | 18 | 0.501 | 51% |  | 100% |
 | h200_ca_bond | FAPE head | 47785117 | ended | 15 | 0.490 | 48% |  | 100% |

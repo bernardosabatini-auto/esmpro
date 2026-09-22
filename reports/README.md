@@ -20,6 +20,8 @@ selection (`--offset 1000` on either scorer); model comparisons use it.
 | report | run | outcome |
 |---|---|---|
 | [h200_full_bs160](h200_full_bs160.md) | FAPE head, batch 160 | stopped at epoch 8, TM 0.462; tracked the batch-96 control |
+| [lf_459M_ddp6](lf_459M_ddp6.md) | latent flow 459M, 6 GPUs, batch 768 | 80k reference: held-out **0.609 / 71% / 10.06 A**, best-of-8 0.668 |
+| [lf_459M](lf_459M.md) | latent flow 459M, one GPU | stopped ep 19 as a duplicate; held-out 0.570 / 63% |
 | [h200_full](h200_full.md) | FAPE head, section-5 job (control) | stopped ep 18; held-out 0.487 / 48% (inherited 0.420 / 29%) |
 | [h200_16L512](h200_16L512.md) | FAPE head, 51M, fresh | stopped ep 18; held-out 0.510 / 53%, best FAPE head |
 | [h200_24L768](h200_24L768.md) | FAPE head, 171M, fresh | stopped ep 17; held-out 0.492 / 47% |
