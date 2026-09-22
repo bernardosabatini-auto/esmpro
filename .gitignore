@@ -5,3 +5,12 @@ ProteinAE_v1/checkpoints/
 ProteinAE_v1/output/
 __pycache__/
 *.pyc
+# data and model artefacts, wherever they appear
+*.h5
+*.pt
+*.ckpt
+*.tar.gz
+*.npy
+*.npz
+*.pdb.gz
+structures/
