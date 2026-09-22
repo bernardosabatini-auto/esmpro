@@ -126,7 +126,7 @@ class OnlineESM(nn.Module):
         self.layer_mix = layer_mix
         # init: all weight on the last layer, i.e. exactly the stored layer-33 embedding
         init = torch.full((n_layers,), -5.0); init[-1] = 5.0
-        self.mix_logits = nn.Parameter(init)
+        self.mix_logits = nn.Parameter(init.to(device))
         self.device = device
 
     def forward(self, seqs, L=MAX_LEN):
