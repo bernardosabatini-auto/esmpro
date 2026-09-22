@@ -59,7 +59,20 @@ permutation were never used for selection by any run (`--offset 1000`):
 | latent flow 59M, epoch 12, w=3 | 0.526 | 55% | 11.02 A | 0.586 |
 
 Selection bias was small: 0.010 TM for the flow model, under 0.005 for the
-FAPE control. The lead of 0.064 TM and 15 points of correct folds over the
+FAPE control.
+
+## Sampler sweep (held-out slice, w=2, epoch-12 EMA)
+| ODE steps | K | TM (first sample) | TM>0.5 | RMSD | best-of-K |
+|---|---|---|---|---|---|
+| 25 | 16 | 0.537 | 61% | 11.25 | 0.614 |
+| 50 | 8 | 0.530 | 57% | 11.14 | 0.593 |
+| 100 | 16 | 0.544 | 60% | 11.00 | 0.609 |
+| 200 | 16 | 0.545 | 59% | 10.98 | 0.609 |
+
+The Euler step count does not matter between 25 and 200 (differences are
+within the ~0.01 seed-to-seed noise), so the sampler is not the bottleneck and
+evaluation can run at 25 steps. Best-of-16 improves on best-of-8 by only
+0.02, so most of the ensemble gain is captured by a handful of samples. The lead of 0.064 TM and 15 points of correct folds over the
 FAPE control holds on the clean set (about two standard errors on 100 paired
 proteins). Coverage 100/100 in every row.
 

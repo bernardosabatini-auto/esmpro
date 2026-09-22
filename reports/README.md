@@ -20,6 +20,6 @@ selection (`--offset 1000` on either scorer); model comparisons use it.
 | report | run | outcome |
 |---|---|---|
 | [h200_full_bs160](h200_full_bs160.md) | FAPE head, batch 160 | stopped at epoch 8, TM 0.462; tracked the batch-96 control |
-| [h200_bb_bond](h200_bb_bond.md) | FAPE head, true frames + bond penalty | stopped at epoch 11, TM 0.480 / 45%; geometry fixed (N-CA dev 0.39 -> 0.10 A), no TM gain over control |
-| [h200_bb](h200_bb.md) | FAPE head, true frames alone | stopped at epoch 11, TM 0.478 / 46%; true frames neither help nor hurt |
+| [h200_bb_bond](h200_bb_bond.md) | FAPE head, true frames + bond penalty | stopped at epoch 11; held-out 0.469 / 43%, same as control; geometry fixed (N-CA dev 0.39 -> 0.10 A) |
+| [h200_bb](h200_bb.md) | FAPE head, true frames alone | stopped at epoch 11; held-out 0.468 / 44%, same as control; true frames neither help nor hurt |
 | [lf_base](lf_base.md) | latent flow 59M, first prototype | stopped at epoch 12; held-out TM 0.530 / 57% at w=2 (FAPE control 0.466 / 42%) |
