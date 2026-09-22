@@ -19,9 +19,15 @@ ap.add_argument("--bs", type=int, default=20)
 a = ap.parse_args()
 dev = torch.device("cuda")
 ck = PROJECT / "data/phase1_dataset" / a.ckpt
-meta = json.loads(open(str(ck) + ".meta.json").read())
-arch = {k: meta[k] for k in ("d_model", "n_layers", "n_heads", "dropout", "self_cond")}
-net = G.LatentFlowNet(**arch).to(dev); net.load_state_dict(torch.load(str(ck), weights_only=True)); net.eval()
+if a.ckpt.endswith(".ckpt"):          # last_<label>.ckpt: full state, use the EMA weights
+    st = torch.load(str(ck), weights_only=False, map_location="cpu")
+    arch, weights = st["arch"], st["ema"]
+    meta = {"epoch": st["epoch"], "tm": st["best_tm"], "cfg_w": None}
+else:                                  # best_<label>.pt + sidecar
+    meta = json.loads(open(str(ck) + ".meta.json").read())
+    arch = {k: meta[k] for k in ("d_model", "n_layers", "n_heads", "dropout", "self_cond")}
+    weights = torch.load(str(ck), weights_only=True)
+net = G.LatentFlowNet(**arch).to(dev); net.load_state_dict(weights); net.eval()
 print(f"checkpoint {a.ckpt}: epoch {meta['epoch']}, train-time TM {meta['tm']:.3f} at w={meta['cfg_w']}, arch {arch}")
 
 # identical protein selection to gate6_score_checkpoint.py

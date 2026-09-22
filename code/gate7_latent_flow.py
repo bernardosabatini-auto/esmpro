@@ -184,7 +184,7 @@ def fm_loss(net, z1, esm, mask, p_drop=0.1, p_sc=0.5, t_dist="logit-normal"):
     v_target = z1 - x0
     drop = torch.rand(B, device=dev) < p_drop
     x_sc = None
-    if net.self_cond and torch.rand(()) < p_sc:
+    if getattr(net, "module", net).self_cond and torch.rand(()) < p_sc:
         with torch.no_grad():
             v0 = net(x_t, t, esm, mask, drop, None)
             x_sc = (x_t + (1 - tt) * v0).detach()
@@ -410,7 +410,7 @@ def main(a):
         el = time.perf_counter() - t0
         say(f"  {epoch+1:4d}  train {train_loss:.4f}  val {val_loss:.4f}  {el:6.0f}s")
 
-        tm_for_select = float("nan")
+        tm_for_select, tm_for_select_w = -1.0, None
         if dec is not None and (epoch + 1) % a.eval_every == 0:
             for w in cfg_ws:
                 t1 = time.perf_counter()
@@ -423,7 +423,7 @@ def main(a):
                 rec[f"eval_w{w}"] = r
                 if not np.isnan(r["tm"]) and r["tm"] > tm_for_select:
                     tm_for_select = r["tm"]; tm_for_select_w = w
-            if not np.isnan(tm_for_select) and tm_for_select > best_tm:
+            if tm_for_select > best_tm:
                 best_tm, best_ep = tm_for_select, epoch + 1
                 torch.save(ema.state_dict(), str(CKPT_DIR / f"best_{a.label}.pt"))
                 meta = {"epoch": epoch + 1, "tm": best_tm, "cfg_w": tm_for_select_w, **arch,
