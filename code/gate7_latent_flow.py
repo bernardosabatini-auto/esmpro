@@ -38,7 +38,11 @@ CKPT_DIR = PROJECT / "data" / "phase1_dataset"
 # 52 GB for 79,653 proteins; the H200 nodes have 1.5 TB).
 # ---------------------------------------------------------------------------
 class RamSplit:
-    def __init__(self, split, n=0, workers=8, keep_ca=False, seed=42, shard=(0, 1)):
+    """online=False: cache the stored layer-33 ESM-2 embeddings (52 GB fp16 for
+    the train split). online=True: cache sequences only (a few MB) and let the
+    trainer run frozen ESM-2 per batch, which also enables all-layer mixing
+    and datasets far larger than RAM."""
+    def __init__(self, split, n=0, workers=8, keep_ca=False, seed=42, shard=(0, 1), online=False):
         ds = ProteinDatasetFAPE(H5_PATH, split)
         torch.manual_seed(seed)
         idx = torch.randperm(len(ds))[:n].tolist() if n else list(range(len(ds)))
@@ -47,13 +51,28 @@ class RamSplit:
             per = len(idx) // world
             idx = idx[rank::world][:per]
         self.names = [ds.names[i] for i in idx]
+        self.online = online
         N = len(idx)
-        self.esm = torch.empty(N, MAX_LEN, D_ESM, dtype=torch.float16)
         self.z = torch.empty(N, MAX_LEN, D_LAT)
         self.mask = torch.empty(N, MAX_LEN, dtype=torch.bool)
         self.ca = torch.empty(N, MAX_LEN, 3) if keep_ca else None
+        t0 = time.perf_counter()
+        if online:
+            self.esm = None
+            self.seqs = []
+            grp = ds.h5[split]
+            for k, nm in enumerate(self.names):
+                g = grp[nm]
+                z = torch.from_numpy(g["z"][:])[:MAX_LEN]; n_ = z.shape[0]
+                self.z[k, :n_] = z; self.mask[k, :n_] = True
+                if keep_ca: self.ca[k, :n_] = torch.from_numpy(g["ca_coords"][:])[:MAX_LEN]
+                self.seqs.append(str(g.attrs["sequence"])[:MAX_LEN])
+                assert len(self.seqs[-1]) == n_, f"{nm}: sequence {len(self.seqs[-1])} != latent {n_}"
+            print(f"  cached {split} (sequences only): {N} proteins, {time.perf_counter()-t0:.0f}s", flush=True)
+            return
+        self.esm = torch.empty(N, MAX_LEN, D_ESM, dtype=torch.float16)
         loader = DataLoader(Subset(ds, idx), batch_size=64, num_workers=workers)
-        t0, k = time.perf_counter(), 0
+        k = 0
         for esm, z, ca, mask, _ in loader:
             b = esm.shape[0]
             self.esm[k:k+b] = esm.half(); self.z[k:k+b] = z; self.mask[k:k+b] = mask
@@ -64,11 +83,46 @@ class RamSplit:
 
     def __len__(self): return self.z.shape[0]
 
+    def cond(self, i):
+        """Conditioning input for indices i: fp16 embeddings, or a list of sequences."""
+        return [self.seqs[j] for j in i.tolist()] if self.online else self.esm[i]
+
     def batches(self, bs, shuffle, gen=None):
         N = len(self); order = torch.randperm(N, generator=gen) if shuffle else torch.arange(N)
         for s in range(0, N, bs):
             i = order[s:s+bs]
-            yield self.esm[i], self.z[i], self.mask[i], (self.ca[i] if self.ca is not None else None), i
+            yield self.cond(i), self.z[i], self.mask[i], (self.ca[i] if self.ca is not None else None), i
+
+
+# ---------------------------------------------------------------------------
+# Frozen ESM-2 run online, with a learned softmax mix over ALL hidden layers
+# (CLAUDE.md section 7: ESMFold trains only the trunk on a learned layer mix).
+# ---------------------------------------------------------------------------
+class OnlineESM(nn.Module):
+    def __init__(self, path, layer_mix=True, device="cuda"):
+        super().__init__()
+        from transformers import AutoTokenizer, EsmModel
+        self.tok = AutoTokenizer.from_pretrained(path)
+        self.esm = EsmModel.from_pretrained(path, torch_dtype=torch.bfloat16, add_pooling_layer=False).eval().to(device)
+        for p in self.esm.parameters():
+            p.requires_grad = False
+        n_layers = self.esm.config.num_hidden_layers + 1          # embeddings + 33 blocks
+        self.layer_mix = layer_mix
+        # init: all weight on the last layer, i.e. exactly the stored layer-33 embedding
+        init = torch.full((n_layers,), -5.0); init[-1] = 5.0
+        self.mix_logits = nn.Parameter(init)
+        self.device = device
+
+    def forward(self, seqs, L=MAX_LEN):
+        enc = self.tok(seqs, return_tensors="pt", padding="max_length", max_length=L + 2, truncation=True)
+        ids, am = enc["input_ids"].to(self.device), enc["attention_mask"].to(self.device)
+        with torch.no_grad():
+            out = self.esm(input_ids=ids, attention_mask=am, output_hidden_states=self.layer_mix)
+        if self.layer_mix:
+            hs = torch.stack(out.hidden_states, 0)[:, :, 1:L + 1]     # (n_layers, B, L, 1280), drop BOS
+            w = torch.softmax(self.mix_logits, 0).to(hs.dtype)
+            return torch.einsum("n,nbld->bld", w, hs)
+        return out.last_hidden_state[:, 1:L + 1]
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +230,7 @@ class LatentFlowNet(nn.Module):
 # Flow matching
 # ---------------------------------------------------------------------------
 def fm_loss(net, z1, esm, mask, p_drop=0.1, p_sc=0.5, t_dist="logit-normal"):
+    """esm: (B,L,1280) conditioning features (stored or online, any float dtype)."""
     B = z1.shape[0]; dev = z1.device
     x0 = torch.randn_like(z1)
     if t_dist == "logit-normal":
@@ -238,7 +293,8 @@ def load_decoder(device, n_steps=3):
 
 @torch.no_grad()
 def evaluate_structures(net, dec, val, device, n=100, bs=20, n_steps=50, cfg_w=1.0,
-                        n_samples=1, seed=0):
+                        n_samples=1, seed=0, embed=None):
+    """embed: OnlineESM (or None when the split holds stored embeddings)."""
     """Sample n_samples latents per protein, decode, TM via Foldseek.
     Returns dict with mean TM (first sample), best-of-K TM, TM>0.5 fraction,
     RMSD, latent error to the stored z, and coverage. Never raises."""
@@ -250,7 +306,11 @@ def evaluate_structures(net, dec, val, device, n=100, bs=20, n_steps=50, cfg_w=1
         tm_by_k = [{} for _ in range(n_samples)]
         rm, zerr, fape = [], [], []
         for s in range(0, n, bs):
-            esm = val.esm[s:s+bs].to(device); mask = val.mask[s:s+bs].to(device)
+            idx_b = torch.arange(s, min(s + bs, n))
+            c = val.cond(idx_b)
+            with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
+                esm = embed(c) if embed is not None else c.to(device)
+            mask = val.mask[s:s+bs].to(device)
             ca = val.ca[s:s+bs]; z_true = val.z[s:s+bs].to(device)
             for k in range(n_samples):
                 gt_d, pr_d = os.path.join(work, f"gt{k}"), os.path.join(work, f"pr{k}")
@@ -309,6 +369,11 @@ def parse_args():
     p.add_argument("--resume", type=str, default=None)
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--smoke", action="store_true", help="tiny CPU/GPU run, no eval")
+    p.add_argument("--esm", choices=["stored", "online"], default="stored",
+                   help="stored: layer-33 embeddings from the HDF5 (52 GB RAM cache); "
+                        "online: run frozen ESM-2 per batch from sequences")
+    p.add_argument("--esm-path", default=str(PROJECT / "data" / "esm2" / "esm2_t33_650M_UR50D"))
+    p.add_argument("--no-layer-mix", action="store_true", help="online mode: use only the last layer")
     return p.parse_args()
 
 
@@ -344,13 +409,19 @@ def main(a):
     else:
         raw = net
 
+    online = a.esm == "online"
+    embed = None
+    if online:
+        embed = OnlineESM(a.esm_path, layer_mix=not a.no_layer_mix, device=device)
+        say(f"  online ESM-2 from {a.esm_path}, layer mix {'on' if not a.no_layer_mix else 'off'}")
     say("Caching data in RAM...")
-    train = RamSplit("train", a.n_train, a.workers, shard=(rank, world))
-    val = RamSplit("val", a.n_val, a.workers, keep_ca=True) if is_main else None
+    train = RamSplit("train", a.n_train, a.workers, shard=(rank, world), online=online)
+    val = RamSplit("val", a.n_val, a.workers, keep_ca=True, online=online) if is_main else None
     say(f"  train {len(train)}/rank  val {len(val) if val else 0}  batch {a.batch_size}")
     torch.manual_seed(1000 + rank)   # decorrelate flow noise / t across ranks (weights already synced)
 
-    opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95))
+    params = list(net.parameters()) + ([embed.mix_logits] if (embed is not None and embed.layer_mix) else [])
+    opt = torch.optim.AdamW(params, lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95))
     steps_per_epoch = math.ceil(len(train) / a.batch_size); total = steps_per_epoch * a.epochs
     def lr_at(step):
         if step < a.warmup: return step / max(a.warmup, 1)
@@ -366,6 +437,8 @@ def main(a):
         st = torch.load(str(CKPT_DIR / a.resume), weights_only=False, map_location=device)
         if st["arch"] != arch: raise ValueError(f"arch mismatch: {st['arch']} vs {arch}")
         raw.load_state_dict(st["net"]); ema.load_state_dict(st["ema"]); opt.load_state_dict(st["opt"])
+        if st.get("mix_logits") is not None and embed is not None:
+            embed.mix_logits.data.copy_(st["mix_logits"].to(device))
         sched.load_state_dict(st["sched"]); start, step = st["epoch"], st["step"]
         best_tm, best_ep, history = st["best_tm"], st["best_ep"], st["history"]
         gen.set_state(st["gen"])
@@ -374,9 +447,10 @@ def main(a):
 
     for epoch in range(start, a.epochs):
         t0 = time.perf_counter(); net.train(); tl, nb = 0.0, 0
-        for esm, z, mask, _, _ in train.batches(a.batch_size, True, gen):
-            esm, z, mask = esm.to(device, non_blocking=True), z.to(device), mask.to(device)
+        for c, z, mask, _, _ in train.batches(a.batch_size, True, gen):
+            z, mask = z.to(device), mask.to(device)
             with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
+                esm = embed(c) if embed is not None else c.to(device, non_blocking=True)
                 loss = fm_loss(net, z, esm, mask, a.p_drop)
             opt.zero_grad(set_to_none=True); loss.backward()
             gn = torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
@@ -405,9 +479,10 @@ def main(a):
         # validation flow loss with the EMA weights
         ema.eval(); vl, vn = 0.0, 0
         with torch.no_grad():
-            for esm, z, mask, _, _ in val.batches(a.batch_size, False):
-                esm, z, mask = esm.to(device), z.to(device), mask.to(device)
+            for c, z, mask, _, _ in val.batches(a.batch_size, False):
+                z, mask = z.to(device), mask.to(device)
                 with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
+                    esm = embed(c) if embed is not None else c.to(device)
                     torch.manual_seed(1234 + vn)          # same noise/t each epoch
                     vl += fm_loss(ema, z, esm, mask, p_drop=0.0, p_sc=0.0).item()
                 vn += 1
@@ -416,13 +491,18 @@ def main(a):
         rec = {"epoch": epoch + 1, "train": train_loss, "val": val_loss, "step": step}
         el = time.perf_counter() - t0
         say(f"  {epoch+1:4d}  train {train_loss:.4f}  val {val_loss:.4f}  {el:6.0f}s")
+        if embed is not None and embed.layer_mix:
+            wmix = torch.softmax(embed.mix_logits.detach().float(), 0).cpu()
+            top = torch.topk(wmix, 5)
+            rec["layer_mix"] = wmix.tolist()
+            say("        layer mix top-5: " + ", ".join(f"L{i}={v:.2f}" for v, i in zip(top.values.tolist(), top.indices.tolist())))
 
         tm_for_select, tm_for_select_w = -1.0, None
         if dec is not None and (epoch + 1) % a.eval_every == 0:
             for w in cfg_ws:
                 t1 = time.perf_counter()
                 r = evaluate_structures(ema, dec, val, device, n=a.eval_n, n_steps=a.sample_steps,
-                                        cfg_w=w, n_samples=1)
+                                        cfg_w=w, n_samples=1, embed=embed)
                 print(f"        w={w:.1f}: TM {r['tm']:.3f}  TM>0.5 {r['tm_frac']:.2f}  "
                       f"RMSD {r.get('rmsd', float('nan')):.2f}  Ca-FAPE {r.get('fape', float('nan')):.3f}  "
                       f"z_mse {r.get('z_mse', float('nan')):.3f}  coverage {r['coverage']:.2f}  "
@@ -434,7 +514,9 @@ def main(a):
                 best_tm, best_ep = tm_for_select, epoch + 1
                 torch.save(ema.state_dict(), str(CKPT_DIR / f"best_{a.label}.pt"))
                 meta = {"epoch": epoch + 1, "tm": best_tm, "cfg_w": tm_for_select_w, **arch,
-                        "model": "LatentFlowNet"}
+                        "model": "LatentFlowNet", "esm": a.esm, "layer_mix": bool(online and not a.no_layer_mix)}
+                if embed is not None and embed.layer_mix:
+                    meta["mix_logits"] = embed.mix_logits.detach().cpu().tolist()
                 json.dump(meta, open(str(CKPT_DIR / f"best_{a.label}.pt.meta.json"), "w"), indent=2)
                 print(f"        new best TM {best_tm:.3f} (w={tm_for_select_w}) -> best_{a.label}.pt", flush=True)
         history.append(rec)
@@ -443,6 +525,7 @@ def main(a):
         torch.save({"net": raw.state_dict(), "ema": ema.state_dict(), "opt": opt.state_dict(),
                     "sched": sched.state_dict(), "epoch": epoch + 1, "step": step,
                     "best_tm": best_tm, "best_ep": best_ep, "history": history, "arch": arch,
+                    "mix_logits": (embed.mix_logits.detach().cpu() if (embed is not None and embed.layer_mix) else None),
                     "gen": gen.get_state(), "torch_rng": torch.get_rng_state()}, str(last) + ".tmp")
         os.replace(str(last) + ".tmp", str(last))
         json.dump({"label": a.label, "arch": arch, "n_params": n_params, "config": vars(a),
