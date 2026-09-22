@@ -23,6 +23,9 @@ ap = argparse.ArgumentParser(); ap.add_argument("--ckpt", required=True)
 ap.add_argument("--n", type=int, default=100); ap.add_argument("--bs", type=int, default=10)
 ap.add_argument("--n-layers", type=int, default=None, help="override sidecar arch")
 ap.add_argument("--d-model", type=int, default=None, help="override sidecar arch")
+ap.add_argument("--offset", type=int, default=0,
+                help="skip this many proteins of the seed-42 permutation (0 = gate set; the training "
+                     "runs select on the first 200, so use >=1000 for a selection-free score)")
 a = ap.parse_args()
 P = Path(ROOT)
 L.seed_everything(42); torch.set_float32_matmul_precision("high"); dev = torch.device("cuda")
@@ -33,7 +36,7 @@ ae = ProteinAE.load_from_checkpoint("checkpoints/ae_r1_d8_v1.ckpt", strict=True,
                                      weights_only=False).eval().to(dev)
 dec = DifferentiableDecoder(ae, n_steps=3).to(dev)
 vf = ProteinDatasetFAPE(P/"data"/"phase1_dataset"/"dataset_100k.h5", "val")
-torch.manual_seed(42); idx = torch.randperm(len(vf))[:a.n].tolist()
+torch.manual_seed(42); idx = torch.randperm(len(vf))[a.offset:a.offset + a.n].tolist()
 names = [vf.names[i] for i in idx]
 loader = DataLoader(torch.utils.data.Subset(vf, idx), batch_size=a.bs, num_workers=2)
 # Read the architecture from the checkpoint's sidecar rather than assuming it,
@@ -75,7 +78,7 @@ with torch.no_grad():
             write_ca_as_pdb(pred[b,:Lb].cpu().numpy(), os.path.join(pd_, f"{nm}.pdb"))
 tms = tm_scores(pd_, gt, os.path.join(w,"tm"))
 meas = [tms[n] for n in names if n in tms]
-print(f"\n  checkpoint : {a.ckpt}")
+print(f"\n  checkpoint : {a.ckpt}   proteins: offset {a.offset}, n {a.n}")
 print(f"  FAPE       : {ff/nb:.4f}")
 print(f"  TM mean    : {np.mean(meas):.3f}   median {np.median(meas):.3f}   coverage {len(meas)}/{len(names)}")
 print(f"  TM > 0.5   : {np.mean([tms.get(n,0)>0.5 for n in names]):.2f}")
@@ -86,5 +89,5 @@ json.dump({"ckpt":a.ckpt,"arch":arch,"fape":ff/nb,"tm_mean":float(np.mean(meas))
            "tm_gt_0.5":float(np.mean([tms.get(n,0)>0.5 for n in names])),
            "tm_gt_0.3":float(np.mean([tms.get(n,0)>0.3 for n in names])),
            "rmsd_mean":float(np.nanmean(rm))},
-          open(P/"notes"/f"tm_{a.ckpt.replace('.pt','')}.json","w"), indent=2)
+          open(P/"notes"/f"tm_{a.ckpt.replace('.pt','')}{'' if a.offset == 0 else f'_off{a.offset}'}.json","w"), indent=2)
 shutil.rmtree(w, ignore_errors=True)

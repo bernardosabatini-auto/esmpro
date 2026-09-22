@@ -12,5 +12,5 @@ source /n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/slurm/env.sh
 cd $ESM_PROAE_ROOT/code
 CKPT=${1:-smallscale_final_40k.pt}; N=${2:-100}; BS=${3:-10}
 echo "scoring $CKPT n=$N bs=$BS on $(hostname)"
-time python gate6_score_checkpoint.py --ckpt $CKPT --n $N --bs $BS
+time python gate6_score_checkpoint.py --ckpt $CKPT --n $N --bs $BS --offset ${4:-0}
 echo GATE_DONE
