@@ -33,14 +33,13 @@ print(f"checkpoint {a.ckpt}: epoch {meta['epoch']}, train-time TM {meta['tm']:.3
 # identical protein selection to gate6_score_checkpoint.py
 vf = ProteinDatasetFAPE(H5_PATH, "val")
 torch.manual_seed(42); idx = torch.randperm(len(vf))[:a.n].tolist()
-class Holder: pass
+class Holder:
+    def __len__(self): return self.z.shape[0]
 val = Holder(); N = len(idx)
 val.esm = torch.empty(N, G.MAX_LEN, G.D_ESM, dtype=torch.float16); val.z = torch.empty(N, G.MAX_LEN, G.D_LAT)
 val.mask = torch.empty(N, G.MAX_LEN, dtype=torch.bool); val.ca = torch.empty(N, G.MAX_LEN, 3); k = 0
 for esm, z, ca, mask, _ in DataLoader(Subset(vf, idx), batch_size=20, num_workers=2):
     b = esm.shape[0]; val.esm[k:k+b] = esm.half(); val.z[k:k+b] = z; val.ca[k:k+b] = ca; val.mask[k:k+b] = mask; k += b
-val.__len__ = lambda: N
-G.RamSplit.__len__  # (unused) keep import honest
 dec = G.load_decoder(dev)
 print(f"{N} val proteins (gate set), {a.steps} ODE steps, K={a.k}")
 print(f"{'w':>4s} {'TM':>6s} {'TM>0.5':>7s} {'TM>0.3':>7s} {'RMSD':>6s} {'best-of-K':>9s} {'cov':>5s} {'s':>4s}")

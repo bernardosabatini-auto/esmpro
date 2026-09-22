@@ -157,8 +157,11 @@ class LatentFlowNet(nn.Module):
         else:
             x_in = x_t
         c_tok = self.cond_proj(self.cond_norm(esm.float()))
-        if cond_drop is not None and cond_drop.any():
-            c_tok = torch.where(cond_drop[:, None, None], self.null_cond.expand(B, L, -1), c_tok)
+        # Always route through torch.where so null_cond is part of the graph
+        # every step (DDP requires every parameter to receive a gradient).
+        if cond_drop is None:
+            cond_drop = torch.zeros(B, dtype=torch.bool, device=x_t.device)
+        c_tok = torch.where(cond_drop[:, None, None], self.null_cond.expand(B, L, -1), c_tok)
         h = self.in_proj(x_in) + c_tok + self.pos.weight[:L][None]
         m = mask.unsqueeze(-1).float()
         c_pool = (c_tok * m).sum(1) / m.sum(1).clamp(min=1.0)
