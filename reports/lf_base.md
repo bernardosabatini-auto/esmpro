@@ -41,12 +41,32 @@ Coverage 100/100 at every evaluation. Still improving when stopped.
 | 4.0 | 0.510 | 47% | 10.60 | 0.574 |
 
 Inherited checkpoint on the same proteins: 0.427 / 32% / 11.56 A. FAPE
-control after 11 epochs (4.5 h): 0.477 / 45% on its 200-protein subset.
+control (`best_h200_full.pt`, epoch 10, TM-selected) on the same proteins:
+0.470 / 41% / 10.91 A.
+
+## Held-out score (selection-free)
+Both trainers select checkpoints on TM over a prefix of the seed-42 validation
+permutation that contains the gate set, so gate-set numbers of a TM-selected
+checkpoint are optimistically biased. Proteins 1000-1099 of the same
+permutation were never used for selection by any run (`--offset 1000`):
+
+| model | TM | TM>0.5 | RMSD | best-of-8 |
+|---|---|---|---|---|
+| inherited checkpoint | 0.420 | 29% | 12.67 A | |
+| FAPE control, best epoch 10 | 0.466 | 42% | 11.74 A | |
+| **latent flow 59M, epoch 12, w=2** | **0.530** | **57%** | **11.14 A** | **0.593** |
+| latent flow 59M, epoch 12, w=1 | 0.474 | 43% | 12.45 A | 0.557 |
+| latent flow 59M, epoch 12, w=3 | 0.526 | 55% | 11.02 A | 0.586 |
+
+Selection bias was small: 0.010 TM for the flow model, under 0.005 for the
+FAPE control. The lead of 0.064 TM and 15 points of correct folds over the
+FAPE control holds on the clean set (about two standard errors on 100 paired
+proteins). Coverage 100/100 in every row.
 
 ## Outcome
 Meets the CLAUDE.md section-9 success bar (mean TM above 0.5 with a majority
 of proteins folding correctly) after 22 minutes of training, with no decoder in
-the training loop. Guidance is worth about 0.05 TM with an optimum at w=2;
+the training loop, on both the gate set and a selection-free held-out set. Guidance is worth about 0.05 TM with an optimum at w=2;
 best-of-8 sampling adds another 0.06, the first evidence of usable ensemble
 capacity in the latent.
 
