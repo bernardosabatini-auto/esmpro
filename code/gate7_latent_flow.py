@@ -119,13 +119,15 @@ class OnlineESM(nn.Module):
         super().__init__()
         from transformers import AutoTokenizer, EsmModel
         self.tok = AutoTokenizer.from_pretrained(path)
-        self.esm = EsmModel.from_pretrained(path, torch_dtype=torch.bfloat16, add_pooling_layer=False).eval().to(device)
+        # fp32 weights; autocast runs the matmuls in bf16 and keeps norms/softmax in fp32
+        self.esm = EsmModel.from_pretrained(path, add_pooling_layer=False).eval().to(device)
         for p in self.esm.parameters():
             p.requires_grad = False
         n_layers = self.esm.config.num_hidden_layers + 1          # embeddings + 33 blocks
         self.layer_mix = layer_mix
-        # init: all weight on the last layer, i.e. exactly the stored layer-33 embedding
-        init = torch.full((n_layers,), -5.0); init[-1] = 5.0
+        # init: mostly the last layer (softmax weight ~0.2 on L33, ~0.025 elsewhere). A hard
+        # one-hot init (+-5 logits) froze the mix: its softmax gradients were ~1e-5.
+        init = torch.zeros(n_layers); init[-1] = 2.0
         self.mix_logits = nn.Parameter(init.to(device))
         self.device = device
 
@@ -321,6 +323,7 @@ def evaluate_structures(net, dec, val, device, n=100, bs=20, n_steps=50, cfg_w=1
         n = min(n, len(val))
         tm_by_k = [{} for _ in range(n_samples)]
         rm, zerr, fape = [], [], []
+        n_bad = 0
         for s in range(0, n, bs):
             idx_b = torch.arange(s, min(s + bs, n))
             c = val.cond(idx_b)
@@ -339,6 +342,8 @@ def evaluate_structures(net, dec, val, device, n=100, bs=20, n_steps=50, cfg_w=1
                     zerr.append((((z.float() - z_true) ** 2 * m).sum() / (m.sum() * D_LAT)).item())
                     rm += kabsch_rmsd(pred.cpu(), ca, mask.cpu())
                     fape.append(fape_loss(pred.cpu(), ca, mask.cpu(), fix_ends=True).item())
+                    bad = (~torch.isfinite(pred).all(-1).all(-1)) | (~torch.isfinite(z).all(-1).all(-1))
+                    n_bad += int(bad.sum())
                 pred = pred.cpu().numpy()
                 for b in range(pred.shape[0]):
                     L_ = int(mask[b].sum()); nm = f"p{s+b:05d}"
@@ -354,7 +359,10 @@ def evaluate_structures(net, dec, val, device, n=100, bs=20, n_steps=50, cfg_w=1
                "tm_frac": float(np.mean([tm_by_k[0].get(x, 0.0) > 0.5 for x in names])),
                "tm_best_of_k": float(np.mean(best)), "k": n_samples,
                "coverage": len(meas) / n, "rmsd": float(np.nanmean(rm)),
-               "fape": float(np.mean(fape)), "z_mse": float(np.mean(zerr)), "cfg_w": cfg_w}
+               "fape": float(np.nanmean(fape)), "z_mse": float(np.nanmean(zerr)), "cfg_w": cfg_w,
+               "n_nonfinite": n_bad}
+        if n_bad:
+            print(f"    [eval: {n_bad} proteins with non-finite latent/coords]", flush=True)
         return out
     except Exception as e:
         print(f"    [structure eval failed: {e}]", flush=True)
@@ -444,8 +452,10 @@ def main(a):
     say(f"  train {len(train)}/rank  val {len(val) if val else 0}  batch {a.batch_size}")
     torch.manual_seed(1000 + rank)   # decorrelate flow noise / t across ranks (weights already synced)
 
-    params = list(net.parameters()) + ([embed.mix_logits] if (embed is not None and embed.layer_mix) else [])
-    opt = torch.optim.AdamW(params, lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95))
+    groups = [{"params": list(net.parameters())}]
+    if embed is not None and embed.layer_mix:   # 34 scalars: no decay, 20x lr so the mix can move
+        groups.append({"params": [embed.mix_logits], "lr": a.lr * 20, "weight_decay": 0.0})
+    opt = torch.optim.AdamW(groups, lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95))
     steps_per_epoch = math.ceil(len(train) / a.batch_size); total = steps_per_epoch * a.epochs
     def lr_at(step):
         if step < a.warmup: return step / max(a.warmup, 1)
