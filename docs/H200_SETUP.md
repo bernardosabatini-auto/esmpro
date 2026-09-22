@@ -86,3 +86,23 @@ h200_ca_bond, h200_bb_bond, h200_bb, h200_cabb_bond. Bond weight 1.0 (L1, A).
 
 Ready to run when a GPU frees: `code/gate6_decoder_tolerance.py` (TM vs
 latent noise, and the head's actual latent error).
+
+## Gate 7: sequence-conditioned latent flow (2026-09-22, evening)
+
+`code/gate7_latent_flow.py`: flow matching over the 8-dim latent conditioned
+on ESM-2, DiT-style, CFG, self-conditioning, EMA, RAM-cached data, TM-based
+selection through the frozen decoder. `code/gate7_score.py` scores a
+checkpoint on the section-4 gate proteins with a guidance sweep and best-of-K.
+
+59M model (d512 x 12L), batch 96, epoch 12 (22 min on one H200), gate set:
+
+| w | TM | TM>0.5 | RMSD | best-of-8 |
+|---|---|---|---|---|
+| 1 | 0.492 | 46% | 11.24 | 0.557 |
+| 2 | 0.540 | 56% | 10.30 | 0.598 |
+| 4 | 0.510 | 47% | 10.60 | 0.574 |
+
+Inherited: 0.427 / 32% / 11.56. FAPE arms after 7-11 epochs: 0.45-0.48.
+Multi-GPU: `slurm/train_latent_flow_ddp.sbatch` (torchrun, per-GPU batch).
+RTX Pro 6000 (96 GB) is the cheap default partition; H200 runs must fill
+the 144 GB (459M at batch 256 = 125 GB).
