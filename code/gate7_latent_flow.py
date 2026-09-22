@@ -42,8 +42,8 @@ class RamSplit:
     the train split). online=True: cache sequences only (a few MB) and let the
     trainer run frozen ESM-2 per batch, which also enables all-layer mixing
     and datasets far larger than RAM."""
-    def __init__(self, split, n=0, workers=8, keep_ca=False, seed=42, shard=(0, 1), online=False):
-        ds = ProteinDatasetFAPE(H5_PATH, split)
+    def __init__(self, split, n=0, workers=8, keep_ca=False, seed=42, shard=(0, 1), online=False, h5_path=None):
+        ds = ProteinDatasetFAPE(h5_path or H5_PATH, split)
         torch.manual_seed(seed)
         idx = torch.randperm(len(ds))[:n].tolist() if n else list(range(len(ds)))
         rank, world = shard
@@ -92,6 +92,22 @@ class RamSplit:
         for s in range(0, N, bs):
             i = order[s:s+bs]
             yield self.cond(i), self.z[i], self.mask[i], (self.ca[i] if self.ca is not None else None), i
+
+
+class ConcatSplit:
+    """Several RamSplits (e.g. the 100k train split plus AFDB shards) as one."""
+    def __init__(self, parts):
+        self.parts = parts; self.online = parts[0].online
+        self.z = torch.cat([p.z for p in parts]); self.mask = torch.cat([p.mask for p in parts])
+        self.ca = torch.cat([p.ca for p in parts]) if parts[0].ca is not None else None
+        if self.online:
+            self.esm = None; self.seqs = sum((p.seqs for p in parts), [])
+        else:
+            self.esm = torch.cat([p.esm for p in parts])
+        self.names = sum((p.names for p in parts), [])
+    def __len__(self): return self.z.shape[0]
+    cond = RamSplit.cond
+    batches = RamSplit.batches
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +390,8 @@ def parse_args():
                         "online: run frozen ESM-2 per batch from sequences")
     p.add_argument("--esm-path", default=str(PROJECT / "data" / "esm2" / "esm2_t33_650M_UR50D"))
     p.add_argument("--no-layer-mix", action="store_true", help="online mode: use only the last layer")
+    p.add_argument("--extra-train-h5", default="", help="comma-separated HDF5 files whose 'train' group is "
+                   "added to the training set (online mode only; e.g. gate8 AFDB shards)")
     return p.parse_args()
 
 
@@ -416,6 +434,12 @@ def main(a):
         say(f"  online ESM-2 from {a.esm_path}, layer mix {'on' if not a.no_layer_mix else 'off'}")
     say("Caching data in RAM...")
     train = RamSplit("train", a.n_train, a.workers, shard=(rank, world), online=online)
+    if a.extra_train_h5:
+        assert online, "--extra-train-h5 needs --esm online (the extra files store no embeddings)"
+        extras = [RamSplit("train", 0, a.workers, shard=(rank, world), online=True, h5_path=f.strip())
+                  for f in a.extra_train_h5.split(",") if f.strip()]
+        train = ConcatSplit([train] + extras)
+        say(f"  extra training files: {a.extra_train_h5} -> train {len(train)}/rank")
     val = RamSplit("val", a.n_val, a.workers, keep_ca=True, online=online) if is_main else None
     say(f"  train {len(train)}/rank  val {len(val) if val else 0}  batch {a.batch_size}")
     torch.manual_seed(1000 + rank)   # decorrelate flow noise / t across ranks (weights already synced)
