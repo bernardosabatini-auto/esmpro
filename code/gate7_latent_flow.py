@@ -53,9 +53,11 @@ class RamSplit:
         self.names = [ds.names[i] for i in idx]
         self.online = online
         N = len(idx)
-        self.z = torch.empty(N, MAX_LEN, D_LAT)
-        self.mask = torch.empty(N, MAX_LEN, dtype=torch.bool)
-        self.ca = torch.empty(N, MAX_LEN, 3) if keep_ca else None
+        # zeros, not empty: the online branch fills only the real residues,
+        # and uninitialised padding produced NaNs downstream.
+        self.z = torch.zeros(N, MAX_LEN, D_LAT)
+        self.mask = torch.zeros(N, MAX_LEN, dtype=torch.bool)
+        self.ca = torch.zeros(N, MAX_LEN, 3) if keep_ca else None
         t0 = time.perf_counter()
         if online:
             self.esm = None
