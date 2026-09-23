@@ -10,4 +10,4 @@ LABEL=${LABEL:-lf_459M_afdb} BS=${BS:-192}
 EXTRA="--esm online --extra-train-h5 $D/dataset_afdb_train_0.h5,$D/dataset_afdb_train_1.h5 \
   --d-model 1024 --n-layers 24 --n-heads 16 --batch-size $BS --lr 4e-4 --warmup 1000 \
   --epochs ${EPOCHS:-60} --eval-every 1 --eval-n 100 --patience 8 --cfg-w 2 --workers 4 --sample-steps 25"
-LABEL=$LABEL EXTRA="$EXTRA" sbatch --nodes=2 --export=ALL $R/slurm/train_latent_flow_multinode.sbatch
+LABEL=$LABEL EXTRA="$EXTRA" sbatch --nodes=2 ${SBATCH_EXTRA:-} --export=ALL $R/slurm/train_latent_flow_multinode.sbatch
