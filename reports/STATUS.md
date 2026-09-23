@@ -1,10 +1,10 @@
 # Live status
 
-Updated 2026-09-23 15:06 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-23 15:35 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
-| lf_174M_esmc | latent flow | 47955320 | running 4:40:37 on kempner_rtx | 56 | 0.697 (w=2.0) | 87% | 7.52 | 100% |
+| lf_174M_esmc | latent flow | 47955320 | running 5:09:23 on kempner_rtx | 62 | 0.704 (w=2.0) | 86% | 7.24 | 100% |
 
 ## Notes (held-out checks of running models)
 
@@ -20,3 +20,4 @@ Updated 2026-09-23 15:06 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-23 16:35 — **Pair track helps at equal batch and epochs (80k, 174M, batch 128):** ESM-2: pair 0.429 vs no-pair 0.314 at epoch 4 (+0.11); ESMC-6B: pair 0.508 vs no-pair 0.478 (+0.03). Pair cost after bucketing + compile + checkpointing: 585 s/epoch vs 268 s (2.2x). The 128-dim pair track (batch 64) is at 0.369 at epoch 2.
 - 2026-09-23 17:00 — ESMC-6B embeddings for the 393k AFDB proteins done (2 x 135 GB). Launched the combined run on 8 H200s: `pf_459M_esmc_afdb` = 459M DiT + 64-dim pair track (6 blocks) + ESMC-6B conditioning + 473k proteins, batch 128/GPU (1024 effective), stored embeddings in a ragged RAM cache. RTX keeps the 80k ablation grid.
 - 2026-09-23 18:00 — `pf_459M_esmc_afdb` (8 H200, pair track + ESMC-6B + 473k) running with residue-budget batching: batches 134-384 proteins by length, **peak GPU 127 GB of 144**, 487 s/epoch (~210 steps). Epoch 1 TM 0.159 (warm-up).
+- 2026-09-23 18:40 — Pair track at epoch 12 (80k, 174M, batch 128): ESM-2 0.558 vs no-pair 0.53; ESMC-6B 0.660 vs no-pair 0.639. Lead is narrowing (+0.11 at ep 4 -> +0.03 at ep 12), so far it buys speed of convergence; plateau (ep ~30) and no-neighbour subsets will decide.
