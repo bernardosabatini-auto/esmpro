@@ -1,10 +1,10 @@
 # Live status
 
-Updated 2026-09-23 15:35 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-23 15:57 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
-| lf_174M_esmc | latent flow | 47955320 | running 5:09:23 on kempner_rtx | 62 | 0.704 (w=2.0) | 86% | 7.24 | 100% |
+| lf_174M_esmc | latent flow | 47955320 | running 5:31:14 on kempner_rtx | 67 | 0.707 (w=2.0) | 88% | 7.30 | 100% |
 
 ## Notes (held-out checks of running models)
 
@@ -21,3 +21,4 @@ Updated 2026-09-23 15:35 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-23 17:00 — ESMC-6B embeddings for the 393k AFDB proteins done (2 x 135 GB). Launched the combined run on 8 H200s: `pf_459M_esmc_afdb` = 459M DiT + 64-dim pair track (6 blocks) + ESMC-6B conditioning + 473k proteins, batch 128/GPU (1024 effective), stored embeddings in a ragged RAM cache. RTX keeps the 80k ablation grid.
 - 2026-09-23 18:00 — `pf_459M_esmc_afdb` (8 H200, pair track + ESMC-6B + 473k) running with residue-budget batching: batches 134-384 proteins by length, **peak GPU 127 GB of 144**, 487 s/epoch (~210 steps). Epoch 1 TM 0.159 (warm-up).
 - 2026-09-23 18:40 — Pair track at epoch 12 (80k, 174M, batch 128): ESM-2 0.558 vs no-pair 0.53; ESMC-6B 0.660 vs no-pair 0.639. Lead is narrowing (+0.11 at ep 4 -> +0.03 at ep 12), so far it buys speed of convergence; plateau (ep ~30) and no-neighbour subsets will decide.
+- 2026-09-23 19:20 — `pf_459M_esmc_afdb` epoch 8 (70 min): **TM 0.650 / 79% / RMSD 8.21 A** on the selection set, rising ~0.02/epoch; the ESM-2 473k model needed 55 epochs to reach 0.656.
