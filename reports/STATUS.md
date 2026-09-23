@@ -1,10 +1,10 @@
 # Live status
 
-Updated 2026-09-23 16:09 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-23 17:28 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
-| lf_174M_esmc | latent flow | 47955320 | running 5:42:58 on kempner_rtx | 70 | 0.704 (w=2.0) | 87% | 7.19 | 100% |
+| lf_174M_esmc | latent flow | 47955320 | running 7:01:47 on kempner_rtx | 87 | 0.705 (w=2.0) | 86% | 7.24 | 100% |
 
 ## Notes (held-out checks of running models)
 
@@ -23,3 +23,4 @@ Updated 2026-09-23 16:09 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-23 18:40 — Pair track at epoch 12 (80k, 174M, batch 128): ESM-2 0.558 vs no-pair 0.53; ESMC-6B 0.660 vs no-pair 0.639. Lead is narrowing (+0.11 at ep 4 -> +0.03 at ep 12), so far it buys speed of convergence; plateau (ep ~30) and no-neighbour subsets will decide.
 - 2026-09-23 19:20 — `pf_459M_esmc_afdb` epoch 8 (70 min): **TM 0.650 / 79% / RMSD 8.21 A** on the selection set, rising ~0.02/epoch; the ESM-2 473k model needed 55 epochs to reach 0.656.
 - 2026-09-23 19:40 — `pf_174M_p128x8` (128-dim pair track, 8 blocks, batch 64, ESM-2, 80k) epoch 8: TM 0.581 / 64% vs 0.525 (64-dim pair, batch 128) and 0.476 (no pair, batch 128). Twice the steps per epoch, so part of the lead is step count.
+- 2026-09-23 20:15 — `pf_459M_esmc_afdb` epoch 20 (2h46m): **TM 0.704 / 87% / RMSD 7.46 A** (selection set), still rising ~0.003/epoch. Held-out and no-neighbour scoring deferred to the plateau (no-backfill rule).
