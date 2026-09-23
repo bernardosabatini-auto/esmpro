@@ -12,3 +12,4 @@
 - 2026-09-23 18:00 — `pf_459M_esmc_afdb` (8 H200, pair track + ESMC-6B + 473k) running with residue-budget batching: batches 134-384 proteins by length, **peak GPU 127 GB of 144**, 487 s/epoch (~210 steps). Epoch 1 TM 0.159 (warm-up).
 - 2026-09-23 18:40 — Pair track at epoch 12 (80k, 174M, batch 128): ESM-2 0.558 vs no-pair 0.53; ESMC-6B 0.660 vs no-pair 0.639. Lead is narrowing (+0.11 at ep 4 -> +0.03 at ep 12), so far it buys speed of convergence; plateau (ep ~30) and no-neighbour subsets will decide.
 - 2026-09-23 19:20 — `pf_459M_esmc_afdb` epoch 8 (70 min): **TM 0.650 / 79% / RMSD 8.21 A** on the selection set, rising ~0.02/epoch; the ESM-2 473k model needed 55 epochs to reach 0.656.
+- 2026-09-23 19:40 — `pf_174M_p128x8` (128-dim pair track, 8 blocks, batch 64, ESM-2, 80k) epoch 8: TM 0.581 / 64% vs 0.525 (64-dim pair, batch 128) and 0.476 (no pair, batch 128). Twice the steps per epoch, so part of the lead is step count.
