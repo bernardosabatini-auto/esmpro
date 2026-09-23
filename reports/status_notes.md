@@ -1,0 +1,1 @@
+- 2026-09-23 04:50 — `best_lf_459M_afdb.pt` (epoch 42, 473k proteins, 8 H200): **held-out TM 0.657, TM>0.5 74%, RMSD 8.87 A, best-of-8 0.713**, coverage 100/100. 80k reference (`best_lf_459M_ddp6.pt`) on the same slice: 0.609 / 71% / 10.06 A / 0.668. Data scale-up is worth +0.05 TM and -1.2 A RMSD at equal model size; the run continues.

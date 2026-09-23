@@ -32,4 +32,7 @@ out = ["# Live status", "", f"Updated {datetime.datetime.now():%Y-%m-%d %H:%M} (
        "these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. "
        "Reference: inherited checkpoint 0.427 / 32% / 11.56 A.", "",
        "| label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |", "|---|---|---|---|---|---|---|---|---|"] + rows
+notes = ROOT / "reports" / "status_notes.md"
+if notes.exists():
+    out += ["", "## Notes (held-out checks of running models)", "", notes.read_text().rstrip()]
 (ROOT / "reports" / "STATUS.md").write_text("\n".join(out) + "\n"); print("\n".join(rows))
