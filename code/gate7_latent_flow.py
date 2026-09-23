@@ -72,7 +72,8 @@ class RamSplit:
                 assert len(self.seqs[-1]) == n_, f"{nm}: sequence {len(self.seqs[-1])} != latent {n_}"
             print(f"  cached {split} (sequences only): {N} proteins, {time.perf_counter()-t0:.0f}s", flush=True)
             return
-        self.esm = torch.empty(N, MAX_LEN, D_ESM, dtype=torch.float16)
+        d_emb = int(ds.h5[split][ds.names[0]]["esm2_emb"].shape[1])
+        self.esm = torch.empty(N, MAX_LEN, d_emb, dtype=torch.float16)
         loader = DataLoader(Subset(ds, idx), batch_size=64, num_workers=workers)
         k = 0
         for esm, z, ca, mask, _ in loader:
@@ -414,6 +415,8 @@ def parse_args():
     p.add_argument("--esm-kind", choices=["esm2", "esmc"], default="esm2",
                    help="online conditioner: HF ESM-2 (1280-d) or ESM Cambrian via transformers AutoModel (ESMC-6B: 2560-d)")
     p.add_argument("--no-layer-mix", action="store_true", help="online mode: use only the last layer")
+    p.add_argument("--h5-path", default="", help="alternate dataset HDF5 with the 100k layout (e.g. dataset_100k_esmc.h5 "
+                   "holding ESMC-6B embeddings under the esm2_emb key); stored mode reads train and val from it")
     p.add_argument("--extra-train-h5", default="", help="comma-separated HDF5 files whose 'train' group is "
                    "added to the training set (online mode only; e.g. gate8 AFDB shards)")
     return p.parse_args()
@@ -441,9 +444,13 @@ def main(a):
     if online:
         embed = OnlineESM(a.esm_path, layer_mix=not a.no_layer_mix, device=device, kind=a.esm_kind)
         say(f"  online {a.esm_kind} from {a.esm_path}, d_cond {embed.d_cond}, layer mix {'on' if embed.layer_mix else 'off'}")
+    d_cond = embed.d_cond if embed is not None else D_ESM
+    if not online and a.h5_path:
+        import h5py as _h5
+        with _h5.File(a.h5_path, "r") as _f:
+            _g = _f["val"]; d_cond = int(_g[next(iter(_g.keys()))]["esm2_emb"].shape[1])
     arch = {"d_model": a.d_model, "n_layers": a.n_layers, "n_heads": a.n_heads,
-            "dropout": a.dropout, "self_cond": not a.no_self_cond,
-            "d_cond": embed.d_cond if embed is not None else D_ESM}
+            "dropout": a.dropout, "self_cond": not a.no_self_cond, "d_cond": d_cond}
     net = LatentFlowNet(**arch).to(device)
     ema = copy.deepcopy(net).eval()
     for p in ema.parameters(): p.requires_grad = False
@@ -458,14 +465,15 @@ def main(a):
         raw = net
 
     say("Caching data in RAM...")
-    train = RamSplit("train", a.n_train, a.workers, shard=(rank, world), online=online)
+    h5p = a.h5_path or None
+    train = RamSplit("train", a.n_train, a.workers, shard=(rank, world), online=online, h5_path=h5p)
     if a.extra_train_h5:
         assert online, "--extra-train-h5 needs --esm online (the extra files store no embeddings)"
         extras = [RamSplit("train", 0, a.workers, shard=(rank, world), online=True, h5_path=f.strip())
                   for f in a.extra_train_h5.split(",") if f.strip()]
         train = ConcatSplit([train] + extras)
         say(f"  extra training files: {a.extra_train_h5} -> train {len(train)}/rank")
-    val = RamSplit("val", a.n_val, a.workers, keep_ca=True, online=online) if is_main else None
+    val = RamSplit("val", a.n_val, a.workers, keep_ca=True, online=online, h5_path=h5p) if is_main else None
     say(f"  train {len(train)}/rank  val {len(val) if val else 0}  batch {a.batch_size}")
     torch.manual_seed(1000 + rank)   # decorrelate flow noise / t across ranks (weights already synced)
 
@@ -566,7 +574,7 @@ def main(a):
                 torch.save(ema.state_dict(), str(CKPT_DIR / f"best_{a.label}.pt"))
                 meta = {"epoch": epoch + 1, "tm": best_tm, "cfg_w": tm_for_select_w, **arch,
                         "model": type(raw).__name__, "esm": a.esm, "esm_kind": a.esm_kind, "esm_path": a.esm_path,
-                        "layer_mix": bool(online and embed is not None and embed.layer_mix)}
+                        "layer_mix": bool(online and embed is not None and embed.layer_mix), "h5_path": a.h5_path}
                 meta.update(getattr(raw, "extra_arch", {}))     # e.g. pair-track hyper-parameters (gate10)
                 if embed is not None and embed.layer_mix:
                     meta["mix_logits"] = embed.mix_logits.detach().cpu().tolist()

@@ -56,7 +56,9 @@ if online:
 print(f"checkpoint {a.ckpt}: epoch {meta['epoch']}, train-time TM {meta['tm']:.3f} at w={meta['cfg_w']}, arch {arch}")
 
 # identical protein selection to gate6_score_checkpoint.py
-vf = ProteinDatasetFAPE(H5_PATH, "val")
+h5p = meta.get("h5_path") or (st.get("h5_path") if a.ckpt.endswith(".ckpt") else None) or os.environ.get("SCORE_H5", "")
+vf = ProteinDatasetFAPE(h5p or H5_PATH, "val")
+if h5p: print(f"embeddings/latents from {h5p}")
 torch.manual_seed(42); idx = torch.randperm(len(vf))[a.offset:a.offset + a.n].tolist()
 if a.names_file:
     want = [l.strip() for l in open(a.names_file) if l.strip()]; pos = {n: i for i, n in enumerate(vf.names)}
@@ -64,7 +66,8 @@ if a.names_file:
 class Holder:
     def __len__(self): return self.z.shape[0]
 val = Holder(); N = len(idx)
-val.esm = torch.empty(N, G.MAX_LEN, G.D_ESM, dtype=torch.float16); val.z = torch.empty(N, G.MAX_LEN, G.D_LAT)
+d_emb = int(vf.h5["val"][vf.names[0]]["esm2_emb"].shape[1])
+val.esm = torch.empty(N, G.MAX_LEN, d_emb, dtype=torch.float16); val.z = torch.empty(N, G.MAX_LEN, G.D_LAT)
 val.mask = torch.empty(N, G.MAX_LEN, dtype=torch.bool); val.ca = torch.empty(N, G.MAX_LEN, 3); k = 0
 for esm, z, ca, mask, _ in DataLoader(Subset(vf, idx), batch_size=20, num_workers=2):
     b = esm.shape[0]; val.esm[k:k+b] = esm.half(); val.z[k:k+b] = z; val.ca[k:k+b] = ca; val.mask[k:k+b] = mask; k += b

@@ -63,7 +63,7 @@ class ProteinDatasetFAPE(Dataset):
         ca = torch.from_numpy(grp["ca_coords"][:])
         n = esm.shape[0]
         if n < self.max_len:
-            esm = torch.cat([esm, torch.zeros(self.max_len - n, 1280)], 0)
+            esm = torch.cat([esm, torch.zeros(self.max_len - n, esm.shape[1])], 0)
             z = torch.cat([z, torch.zeros(self.max_len - n, 8)], 0)
             ca = torch.cat([ca, torch.zeros(self.max_len - n, 3)], 0)
         else:
