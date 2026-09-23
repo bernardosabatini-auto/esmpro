@@ -53,7 +53,7 @@ run([_FOLDSEEK, "createdb", f"{W}/val", f"{W}/valDB", "--threads", str(a.threads
 print(f"dbs built ({time.perf_counter()-t0:.0f}s)", flush=True)
 os.makedirs(f"{W}/tmp", exist_ok=True)
 run([_FOLDSEEK, "search", f"{W}/valDB", f"{W}/trainDB", f"{W}/aln", f"{W}/tmp", "--alignment-type", "1",
-     "-s", "9.5", "--max-seqs", "2000", "-e", "10", "--exact-tmscore", "1", "--threads", str(a.threads)])
+     "-s", "9.5", "--max-seqs", "2000", "-e", "10", "--exact-tmscore", "1", "-a", "--threads", str(a.threads)])
 run([_FOLDSEEK, "convertalis", f"{W}/valDB", f"{W}/trainDB", f"{W}/aln", f"{W}/aln.tsv",
      "--format-output", "query,target,qtmscore,ttmscore,alntmscore", "--threads", str(a.threads)])
 print(f"search done ({time.perf_counter()-t0:.0f}s)", flush=True)
