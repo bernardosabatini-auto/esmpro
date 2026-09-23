@@ -117,15 +117,27 @@ class ConcatSplit:
 # (CLAUDE.md section 7: ESMFold trains only the trunk on a learned layer mix).
 # ---------------------------------------------------------------------------
 class OnlineESM(nn.Module):
-    def __init__(self, path, layer_mix=True, device="cuda"):
+    """Frozen protein language model run per batch. kind='esm2' (HF EsmModel,
+    fp32 weights under autocast) or kind='esmc' (ESM Cambrian via transformers'
+    native AutoModel, bf16 weights: 6B in fp32 would not fit next to the flow
+    model). Output: last hidden state (B, L, d_cond) with BOS/EOS stripped.
+    layer_mix is kept for the ESM-2 ablation only; the user's direction is a
+    single layer."""
+    def __init__(self, path, layer_mix=True, device="cuda", kind="esm2"):
         super().__init__()
-        from transformers import AutoTokenizer, EsmModel
+        from transformers import AutoTokenizer, AutoModel, EsmModel
+        self.kind = kind
         self.tok = AutoTokenizer.from_pretrained(path)
-        # fp32 weights; autocast runs the matmuls in bf16 and keeps norms/softmax in fp32
-        self.esm = EsmModel.from_pretrained(path, add_pooling_layer=False).eval().to(device)
+        if kind == "esm2":
+            # fp32 weights; autocast runs the matmuls in bf16 and keeps norms/softmax in fp32
+            self.esm = EsmModel.from_pretrained(path, add_pooling_layer=False).eval().to(device)
+        else:
+            self.esm = AutoModel.from_pretrained(path, dtype=torch.bfloat16).eval().to(device)
+            layer_mix = False
         for p in self.esm.parameters():
             p.requires_grad = False
-        n_layers = self.esm.config.num_hidden_layers + 1          # embeddings + 33 blocks
+        self.d_cond = self.esm.config.hidden_size
+        n_layers = self.esm.config.num_hidden_layers + 1          # embeddings + blocks
         self.layer_mix = layer_mix
         # init: mostly the last layer (softmax weight ~0.2 on L33, ~0.025 elsewhere). A hard
         # one-hot init (+-5 logits) froze the mix: its softmax gradients were ~1e-5.
@@ -139,10 +151,10 @@ class OnlineESM(nn.Module):
         with torch.no_grad():
             out = self.esm(input_ids=ids, attention_mask=am, output_hidden_states=self.layer_mix)
         if self.layer_mix:
-            hs = torch.stack(out.hidden_states, 0)[:, :, 1:L + 1]     # (n_layers, B, L, 1280), drop BOS
+            hs = torch.stack(out.hidden_states, 0)[:, :, 1:L + 1]     # (n_layers, B, L, d), drop BOS
             w = torch.softmax(self.mix_logits, 0).to(hs.dtype)
             return torch.einsum("n,nbld->bld", w, hs)
-        return out.last_hidden_state[:, 1:L + 1]
+        return out.last_hidden_state[:, 1:L + 1]                       # both tokenizers: BOS first, EOS after
 
 
 # ---------------------------------------------------------------------------
@@ -202,12 +214,12 @@ class DiTBlock(nn.Module):
 
 class LatentFlowNet(nn.Module):
     def __init__(self, d_model=512, n_layers=12, n_heads=8, dropout=0.0,
-                 rel_pos=32, self_cond=True):
+                 rel_pos=32, self_cond=True, d_cond=D_ESM):
         super().__init__()
         self.self_cond = self_cond
         self.in_proj = nn.Linear(D_LAT * (2 if self_cond else 1), d_model)
-        self.cond_norm = nn.LayerNorm(D_ESM)
-        self.cond_proj = nn.Linear(D_ESM, d_model)
+        self.cond_norm = nn.LayerNorm(d_cond)
+        self.cond_proj = nn.Linear(d_cond, d_model)
         self.null_cond = nn.Parameter(torch.zeros(1, 1, d_model))   # CFG "no sequence"
         self.pos = nn.Embedding(MAX_LEN, d_model)
         self.t_mlp = nn.Sequential(nn.Linear(d_model, d_model), nn.SiLU(), nn.Linear(d_model, d_model))
@@ -399,6 +411,8 @@ def parse_args():
                    help="stored: layer-33 embeddings from the HDF5 (52 GB RAM cache); "
                         "online: run frozen ESM-2 per batch from sequences")
     p.add_argument("--esm-path", default=str(PROJECT / "data" / "esm2" / "esm2_t33_650M_UR50D"))
+    p.add_argument("--esm-kind", choices=["esm2", "esmc"], default="esm2",
+                   help="online conditioner: HF ESM-2 (1280-d) or ESM Cambrian via transformers AutoModel (ESMC-6B: 2560-d)")
     p.add_argument("--no-layer-mix", action="store_true", help="online mode: use only the last layer")
     p.add_argument("--extra-train-h5", default="", help="comma-separated HDF5 files whose 'train' group is "
                    "added to the training set (online mode only; e.g. gate8 AFDB shards)")
@@ -422,8 +436,14 @@ def main(a):
     def say(*x):
         if is_main: print(*x, flush=True)
     say("=" * 60 + "\nGate 7: sequence-conditioned latent flow\n" + "=" * 60)
+    online = a.esm == "online"
+    embed = None
+    if online:
+        embed = OnlineESM(a.esm_path, layer_mix=not a.no_layer_mix, device=device, kind=a.esm_kind)
+        say(f"  online {a.esm_kind} from {a.esm_path}, d_cond {embed.d_cond}, layer mix {'on' if embed.layer_mix else 'off'}")
     arch = {"d_model": a.d_model, "n_layers": a.n_layers, "n_heads": a.n_heads,
-            "dropout": a.dropout, "self_cond": not a.no_self_cond}
+            "dropout": a.dropout, "self_cond": not a.no_self_cond,
+            "d_cond": embed.d_cond if embed is not None else D_ESM}
     net = LatentFlowNet(**arch).to(device)
     ema = copy.deepcopy(net).eval()
     for p in ema.parameters(): p.requires_grad = False
@@ -437,11 +457,6 @@ def main(a):
     else:
         raw = net
 
-    online = a.esm == "online"
-    embed = None
-    if online:
-        embed = OnlineESM(a.esm_path, layer_mix=not a.no_layer_mix, device=device)
-        say(f"  online ESM-2 from {a.esm_path}, layer mix {'on' if not a.no_layer_mix else 'off'}")
     say("Caching data in RAM...")
     train = RamSplit("train", a.n_train, a.workers, shard=(rank, world), online=online)
     if a.extra_train_h5:
@@ -455,7 +470,7 @@ def main(a):
     torch.manual_seed(1000 + rank)   # decorrelate flow noise / t across ranks (weights already synced)
 
     groups = [{"params": list(net.parameters())}]
-    if embed is not None and embed.layer_mix:   # 34 scalars: no decay, 20x lr so the mix can move
+    if embed is not None and embed.layer_mix and a.esm_kind == "esm2":   # 34 scalars: no decay, 20x lr so the mix can move
         groups.append({"params": [embed.mix_logits], "lr": a.lr * 20, "weight_decay": 0.0})
     opt = torch.optim.AdamW(groups, lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95))
     steps_per_epoch = math.ceil(len(train) / a.batch_size); total = steps_per_epoch * a.epochs
@@ -550,7 +565,8 @@ def main(a):
                 best_tm, best_ep = tm_for_select, epoch + 1
                 torch.save(ema.state_dict(), str(CKPT_DIR / f"best_{a.label}.pt"))
                 meta = {"epoch": epoch + 1, "tm": best_tm, "cfg_w": tm_for_select_w, **arch,
-                        "model": type(raw).__name__, "esm": a.esm, "layer_mix": bool(online and not a.no_layer_mix)}
+                        "model": type(raw).__name__, "esm": a.esm, "esm_kind": a.esm_kind, "esm_path": a.esm_path,
+                        "layer_mix": bool(online and embed is not None and embed.layer_mix)}
                 meta.update(getattr(raw, "extra_arch", {}))     # e.g. pair-track hyper-parameters (gate10)
                 if embed is not None and embed.layer_mix:
                     meta["mix_logits"] = embed.mix_logits.detach().cpu().tolist()
@@ -563,6 +579,7 @@ def main(a):
                     "sched": sched.state_dict(), "epoch": epoch + 1, "step": step,
                     "best_tm": best_tm, "best_ep": best_ep, "history": history, "arch": arch,
                     "model": type(raw).__name__, "extra_arch": getattr(raw, "extra_arch", {}),
+                    "esm_kind": a.esm_kind, "esm_path": a.esm_path,
                     "mix_logits": (embed.mix_logits.detach().cpu() if (embed is not None and embed.layer_mix) else None),
                     "gen": gen.get_state(), "torch_rng": torch.get_rng_state()}, str(last) + ".tmp")
         os.replace(str(last) + ".tmp", str(last))

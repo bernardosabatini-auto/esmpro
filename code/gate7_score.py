@@ -31,7 +31,7 @@ if a.ckpt.endswith(".ckpt"):          # last_<label>.ckpt: full state, use the E
             "layer_mix": st.get("mix_logits") is not None}
 else:                                  # best_<label>.pt + sidecar
     meta = json.loads(open(str(ck) + ".meta.json").read())
-    arch = {k: meta[k] for k in ("d_model", "n_layers", "n_heads", "dropout", "self_cond")}
+    arch = {k: meta[k] for k in ("d_model", "n_layers", "n_heads", "dropout", "self_cond", "d_cond") if k in meta}
     weights = torch.load(str(ck), weights_only=True)
 if meta.get("model") == "PairFlowNet" or (a.ckpt.endswith(".ckpt") and st.get("model") == "PairFlowNet"):
     import gate10_pair_flow as G10
@@ -45,12 +45,14 @@ online = meta.get("esm", "stored") == "online"
 embed = None
 if online:
     import os as _o
-    embed = G.OnlineESM(_o.environ.get("ESM2_PATH", str(PROJECT / "data" / "esm2" / "esm2_t33_650M_UR50D")),
-                        layer_mix=bool(meta.get("layer_mix", False)), device=dev)
+    kind = meta.get("esm_kind") or (st.get("esm_kind") if a.ckpt.endswith(".ckpt") else None) or "esm2"
+    path = meta.get("esm_path") or (st.get("esm_path") if a.ckpt.endswith(".ckpt") else None) or \
+           _o.environ.get("ESM2_PATH", str(PROJECT / "data" / "esm2" / "esm2_t33_650M_UR50D"))
+    embed = G.OnlineESM(path, layer_mix=bool(meta.get("layer_mix", False)), device=dev, kind=kind)
     ml = meta.get("mix_logits") if not a.ckpt.endswith(".ckpt") else st.get("mix_logits")
     if ml is not None:
         embed.mix_logits.data.copy_(torch.as_tensor(ml, device=dev))
-    print(f"online ESM-2, layer mix {embed.layer_mix}")
+    print(f"online {kind} from {path}, d_cond {embed.d_cond}, layer mix {embed.layer_mix}")
 print(f"checkpoint {a.ckpt}: epoch {meta['epoch']}, train-time TM {meta['tm']:.3f} at w={meta['cfg_w']}, arch {arch}")
 
 # identical protein selection to gate6_score_checkpoint.py

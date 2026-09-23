@@ -145,15 +145,15 @@ class PairFlowNet(nn.Module):
     `contact` and `dist_feats`, and a `pair` kwarg to reuse a precomputed pair
     tensor (self-conditioning pass, sampling steps)."""
     def __init__(self, d_model=768, n_layers=16, n_heads=12, dropout=0.0, rel_pos=32, self_cond=True,
-                 d_pair=64, n_pair_blocks=6, pair_contact=False, pair_dist_bins=0):
+                 d_cond=D_ESM, d_pair=64, n_pair_blocks=6, pair_contact=False, pair_dist_bins=0):
         super().__init__()
         self.self_cond = self_cond
         self.in_proj = nn.Linear(D_LAT * (2 if self_cond else 1), d_model)
-        self.cond_norm = nn.LayerNorm(D_ESM); self.cond_proj = nn.Linear(D_ESM, d_model)
+        self.cond_norm = nn.LayerNorm(d_cond); self.cond_proj = nn.Linear(d_cond, d_model)
         self.null_cond = nn.Parameter(torch.zeros(1, 1, d_model))
         self.pos = nn.Embedding(MAX_LEN, d_model)
         self.t_mlp = nn.Sequential(nn.Linear(d_model, d_model), nn.SiLU(), nn.Linear(d_model, d_model))
-        self.pair = PairTrack(D_ESM, d_pair, n_pair_blocks, rel_pos, pair_contact, pair_dist_bins, dropout)
+        self.pair = PairTrack(d_cond, d_pair, n_pair_blocks, rel_pos, pair_contact, pair_dist_bins, dropout)
         self.null_pair = nn.Parameter(torch.zeros(1, 1, 1, d_pair))
         self.pair_bias_norm = nn.LayerNorm(d_pair)
         self.pair_bias = nn.Linear(d_pair, n_layers * n_heads, bias=False); nn.init.zeros_(self.pair_bias.weight)
