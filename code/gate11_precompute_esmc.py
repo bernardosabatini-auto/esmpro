@@ -13,9 +13,11 @@ ROOT = os.environ["ESM_PROAE_ROOT"]; sys.path.insert(0, ROOT + "/code")
 import gate7_latent_flow as G
 ap = argparse.ArgumentParser(); ap.add_argument("--splits", default="train,val"); ap.add_argument("--bs", type=int, default=64)
 ap.add_argument("--out", default=str(G.PROJECT / "data/phase1_dataset/dataset_100k_esmc.h5"))
-ap.add_argument("--esm-path", default=str(G.PROJECT / "data/esmc6b")); a = ap.parse_args()
+ap.add_argument("--esm-path", default=str(G.PROJECT / "data/esmc6b"))
+ap.add_argument("--src", default=str(G.H5_PATH), help="source HDF5 with split groups holding z, ca_coords and a sequence attr")
+a = ap.parse_args()
 emb = G.OnlineESM(a.esm_path, device="cuda", kind="esmc")
-src = h5py.File(G.H5_PATH, "r"); out = h5py.File(a.out, "a")
+src = h5py.File(a.src, "r"); out = h5py.File(a.out, "a")
 t0 = time.perf_counter()
 for split in a.splits.split(","):
     g_out = out.require_group(split); names = list(src[split].keys())
@@ -31,11 +33,12 @@ for split in a.splits.split(","):
             g = g_out.create_group(n)
             g.create_dataset("esm2_emb", data=e[i, :L])                       # ESMC embedding, same key for the loader
             g.create_dataset("z", data=gi["z"][:]); g.create_dataset("ca_coords", data=gi["ca_coords"][:])
+            if "backbone" in gi: g.create_dataset("backbone", data=gi["backbone"][:])
             for k, v in gi.attrs.items(): g.attrs[k] = v
             g.attrs["embedding"] = "ESMC-6B last hidden state, bf16 autocast, stored fp16"
         if (s // a.bs) % 100 == 0:
             el = time.perf_counter() - t0
             print(f"  {split} {s+len(batch)}/{len(todo)}  {el:.0f}s  eta {el/(s+len(batch))*(len(todo)-s-len(batch))/60:.0f} min", flush=True)
         out.flush()
-out.attrs["source"] = "ESMC-6B (biohub/ESMC-6B) embeddings of dataset_100k.h5 sequences"
+out.attrs["source"] = f"ESMC-6B (biohub/ESMC-6B) embeddings of {a.src} sequences"
 out.close(); print(f"done {time.perf_counter()-t0:.0f}s -> {a.out}")

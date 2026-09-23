@@ -505,8 +505,9 @@ def main(a):
     h5p = a.h5_path or None
     train = RamSplit("train", a.n_train, a.workers, shard=(rank, world), online=online, h5_path=h5p)
     if a.extra_train_h5:
-        assert online, "--extra-train-h5 needs --esm online (the extra files store no embeddings)"
-        extras = [RamSplit("train", 0, a.workers, shard=(rank, world), online=True, h5_path=f.strip())
+        # stored mode works when the extra files carry embeddings under esm2_emb (e.g. the
+        # gate11 ESMC files); the gate8 shards have none and need --esm online
+        extras = [RamSplit("train", 0, a.workers, shard=(rank, world), online=online, h5_path=f.strip())
                   for f in a.extra_train_h5.split(",") if f.strip()]
         train = ConcatSplit([train] + extras)
         say(f"  extra training files: {a.extra_train_h5} -> train {len(train)}/rank")

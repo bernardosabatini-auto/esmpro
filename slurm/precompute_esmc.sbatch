@@ -8,5 +8,5 @@
 #SBATCH --time=04:00:00
 #SBATCH --output=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/logs/%x_%j.out
 source /n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/slurm/env.sh
-python -u $ESM_PROAE_ROOT/code/gate11_precompute_esmc.py --splits val,train --bs 64 2>&1 | grep -v -i -E "warn|Loading weights|UNEXPECTED|^Key|^---|^Notes|can be ignored"
+python -u $ESM_PROAE_ROOT/code/gate11_precompute_esmc.py --splits ${SPLITS:-val,train} --bs 64 ${SRC:+--src $SRC} ${OUT:+--out $OUT} 2>&1 | grep -v -i -E "warn|Loading weights|UNEXPECTED|^Key|^---|^Notes|can be ignored"
 echo PRECOMPUTE_DONE
