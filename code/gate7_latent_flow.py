@@ -550,7 +550,8 @@ def main(a):
                 best_tm, best_ep = tm_for_select, epoch + 1
                 torch.save(ema.state_dict(), str(CKPT_DIR / f"best_{a.label}.pt"))
                 meta = {"epoch": epoch + 1, "tm": best_tm, "cfg_w": tm_for_select_w, **arch,
-                        "model": "LatentFlowNet", "esm": a.esm, "layer_mix": bool(online and not a.no_layer_mix)}
+                        "model": type(raw).__name__, "esm": a.esm, "layer_mix": bool(online and not a.no_layer_mix)}
+                meta.update(getattr(raw, "extra_arch", {}))     # e.g. pair-track hyper-parameters (gate10)
                 if embed is not None and embed.layer_mix:
                     meta["mix_logits"] = embed.mix_logits.detach().cpu().tolist()
                 json.dump(meta, open(str(CKPT_DIR / f"best_{a.label}.pt.meta.json"), "w"), indent=2)
@@ -561,6 +562,7 @@ def main(a):
         torch.save({"net": raw.state_dict(), "ema": ema.state_dict(), "opt": opt.state_dict(),
                     "sched": sched.state_dict(), "epoch": epoch + 1, "step": step,
                     "best_tm": best_tm, "best_ep": best_ep, "history": history, "arch": arch,
+                    "model": type(raw).__name__, "extra_arch": getattr(raw, "extra_arch", {}),
                     "mix_logits": (embed.mix_logits.detach().cpu() if (embed is not None and embed.layer_mix) else None),
                     "gen": gen.get_state(), "torch_rng": torch.get_rng_state()}, str(last) + ".tmp")
         os.replace(str(last) + ".tmp", str(last))

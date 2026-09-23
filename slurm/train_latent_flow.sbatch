@@ -15,12 +15,12 @@ source /n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/slurm/env.sh
 cd $ESM_PROAE_ROOT/code
 LABEL=${LABEL:-lf_base}
 LAST=$ESM_PROAE_ROOT/data/phase1_dataset/last_${LABEL}.ckpt
-resubmit() { echo "[$(date)] resubmitting for resume"; cd $ESM_PROAE_ROOT && LABEL=$LABEL EXTRA="$EXTRA" sbatch -p $SLURM_JOB_PARTITION --export=ALL slurm/train_latent_flow.sbatch; }
+resubmit() { echo "[$(date)] resubmitting for resume"; cd $ESM_PROAE_ROOT && LABEL=$LABEL EXTRA="$EXTRA" SCRIPT="${SCRIPT:-}" sbatch -p $SLURM_JOB_PARTITION --export=ALL slurm/train_latent_flow.sbatch; }
 trap resubmit USR1
 if [ -f "$LAST" ]; then
-  python -u gate7_latent_flow.py --label $LABEL ${EXTRA:-} --resume last_${LABEL}.ckpt &
+  python -u ${SCRIPT:-gate7_latent_flow.py} --label $LABEL ${EXTRA:-} --resume last_${LABEL}.ckpt &
 else
-  python -u gate7_latent_flow.py --label $LABEL ${EXTRA:-} &
+  python -u ${SCRIPT:-gate7_latent_flow.py} --label $LABEL ${EXTRA:-} &
 fi
 PID=$!
 while kill -0 $PID 2>/dev/null; do wait $PID; RC=$?; done

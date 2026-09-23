@@ -33,7 +33,14 @@ else:                                  # best_<label>.pt + sidecar
     meta = json.loads(open(str(ck) + ".meta.json").read())
     arch = {k: meta[k] for k in ("d_model", "n_layers", "n_heads", "dropout", "self_cond")}
     weights = torch.load(str(ck), weights_only=True)
-net = G.LatentFlowNet(**arch).to(dev); net.load_state_dict(weights); net.eval()
+if meta.get("model") == "PairFlowNet" or (a.ckpt.endswith(".ckpt") and st.get("model") == "PairFlowNet"):
+    import gate10_pair_flow as G10
+    G10.install()
+    ex = meta.get("extra_arch") or st.get("extra_arch") if a.ckpt.endswith(".ckpt") else {k: meta[k] for k in ("d_pair", "n_pair_blocks", "pair_contact") if k in meta}
+    net = G10.PairFlowNet(**arch, **ex).to(dev); print("pair-track model", ex)
+else:
+    net = G.LatentFlowNet(**arch).to(dev)
+net.load_state_dict(weights); net.eval()
 online = meta.get("esm", "stored") == "online"
 embed = None
 if online:
