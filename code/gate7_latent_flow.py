@@ -72,23 +72,39 @@ class RamSplit:
                 assert len(self.seqs[-1]) == n_, f"{nm}: sequence {len(self.seqs[-1])} != latent {n_}"
             print(f"  cached {split} (sequences only): {N} proteins, {time.perf_counter()-t0:.0f}s", flush=True)
             return
-        d_emb = int(ds.h5[split][ds.names[0]]["esm2_emb"].shape[1])
-        self.esm = torch.empty(N, MAX_LEN, d_emb, dtype=torch.float16)
+        # Ragged embedding cache: only real residues, one flat fp16 buffer,
+        # padded per batch in cond(). Halves host memory vs padding to 256
+        # (mean length ~135); ESMC-6B's 2560-d embeddings padded did not fit.
+        grp = ds.h5[split]
+        self.d_emb = int(grp[ds.names[0]]["esm2_emb"].shape[1])
+        self.lens = torch.tensor([min(int(grp[nm]["esm2_emb"].shape[0]), MAX_LEN) for nm in self.names])
+        self.offsets = torch.zeros(N + 1, dtype=torch.long); self.offsets[1:] = torch.cumsum(self.lens, 0)
+        self.esm_flat = torch.empty(int(self.offsets[-1]), self.d_emb, dtype=torch.float16)
+        self.esm = None
         loader = DataLoader(Subset(ds, idx), batch_size=64, num_workers=workers)
         k = 0
-        for esm, z, ca, mask, _ in loader:
+        for esm, z, ca, mask, lengths in loader:
             b = esm.shape[0]
-            self.esm[k:k+b] = esm.half(); self.z[k:k+b] = z; self.mask[k:k+b] = mask
+            for j in range(b):
+                n_ = int(lengths[j]); o = int(self.offsets[k + j])
+                self.esm_flat[o:o + n_] = esm[j, :n_].half()
+            self.z[k:k+b] = z; self.mask[k:k+b] = mask
             if keep_ca: self.ca[k:k+b] = ca
             k += b
-        print(f"  cached {split}: {N} proteins, {self.esm.numel()*2/1e9:.1f} GB, "
+        print(f"  cached {split}: {N} proteins, {self.esm_flat.numel()*2/1e9:.1f} GB (ragged, d {self.d_emb}), "
               f"{time.perf_counter()-t0:.0f}s", flush=True)
 
     def __len__(self): return self.z.shape[0]
 
     def cond(self, i):
-        """Conditioning input for indices i: fp16 embeddings, or a list of sequences."""
-        return [self.seqs[j] for j in i.tolist()] if self.online else self.esm[i]
+        """Conditioning input for indices i: padded fp16 embeddings (B, MAX_LEN, d), or a list of sequences."""
+        if self.online:
+            return [self.seqs[j] for j in i.tolist()]
+        out = torch.zeros(len(i), MAX_LEN, self.d_emb, dtype=torch.float16)
+        for r, j in enumerate(i.tolist()):
+            o, n_ = int(self.offsets[j]), int(self.lens[j])
+            out[r, :n_] = self.esm_flat[o:o + n_]
+        return out
 
     def batches(self, bs, shuffle, gen=None):
         N = len(self); order = torch.randperm(N, generator=gen) if shuffle else torch.arange(N)
@@ -106,7 +122,9 @@ class ConcatSplit:
         if self.online:
             self.esm = None; self.seqs = sum((p.seqs for p in parts), [])
         else:
-            self.esm = torch.cat([p.esm for p in parts])
+            self.d_emb = parts[0].d_emb; self.esm = None
+            self.esm_flat = torch.cat([p.esm_flat for p in parts]); self.lens = torch.cat([p.lens for p in parts])
+            self.offsets = torch.zeros(len(self.lens) + 1, dtype=torch.long); self.offsets[1:] = torch.cumsum(self.lens, 0)
         self.names = sum((p.names for p in parts), [])
     def __len__(self): return self.z.shape[0]
     cond = RamSplit.cond
