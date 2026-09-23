@@ -5,3 +5,4 @@ conda activate proteinae
 export FOLDSEEK_BIN=$CONDA_PREFIX/bin/foldseek
 export MMSEQS_BIN=$CONDA_PREFIX/bin/mmseqs
 export HDF5_USE_FILE_LOCKING=FALSE
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True

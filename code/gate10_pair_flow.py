@@ -23,6 +23,7 @@ ESM-2, RAM cache, TM evaluation) is inherited from gate7_latent_flow.py.
 """
 import os, sys, math
 import torch, torch.nn as nn, torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import gate7_latent_flow as G7
 from gate7_latent_flow import (D_LAT, D_ESM, MAX_LEN, timestep_embedding, DiTBlock)
@@ -36,18 +37,16 @@ class PairAttention(nn.Module):
         self.h, self.dh, self.rel = n_heads, d // n_heads, rel_pos
         self.qkv = nn.Linear(d, 3 * d); self.out = nn.Linear(d, d)
         self.bias = nn.Embedding(2 * rel_pos + 1, n_heads); nn.init.zeros_(self.bias.weight)
-        self.pair_norm = nn.LayerNorm(d_pair)
-        self.pair_to_bias = nn.Linear(d_pair, n_heads, bias=False); nn.init.zeros_(self.pair_to_bias.weight)
         self.dropout = dropout
 
-    def forward(self, x, mask, pair):
+    def forward(self, x, mask, pb):
+        """pb: (B,H,L,L) pair bias for this layer (precomputed once for all layers)."""
         B, L, D = x.shape
         q, k, v = self.qkv(x).view(B, L, 3, self.h, self.dh).unbind(2)
         q, k, v = (t.transpose(1, 2) for t in (q, k, v))
         pos = torch.arange(L, device=x.device)
         rel = (pos[None, :] - pos[:, None]).clamp(-self.rel, self.rel) + self.rel
         bias = self.bias(rel).permute(2, 0, 1).unsqueeze(0)                       # (1,H,L,L)
-        pb = self.pair_to_bias(self.pair_norm(pair)).permute(0, 3, 1, 2)          # (B,H,L,L)
         pad = torch.zeros(B, 1, 1, L, device=x.device, dtype=bias.dtype).masked_fill(~mask[:, None, None, :], float("-inf"))
         o = F.scaled_dot_product_attention(q, k, v, attn_mask=(bias + pb + pad).to(q.dtype),
                                            dropout_p=self.dropout if self.training else 0.0)
@@ -59,9 +58,9 @@ class PairDiTBlock(DiTBlock):
         super().__init__(d, n_heads, rel_pos, dropout)
         self.attn = PairAttention(d, n_heads, d_pair, rel_pos, dropout)
 
-    def forward(self, x, c, mask, pair):
+    def forward(self, x, c, mask, pb):
         s1, b1, g1, s2, b2, g2 = self.ada(c).unsqueeze(1).chunk(6, dim=-1)
-        x = x + g1 * self.attn(self.n1(x) * (1 + s1) + b1, mask, pair)
+        x = x + g1 * self.attn(self.n1(x) * (1 + s1) + b1, mask, pb)
         x = x + g2 * self.mlp(self.n2(x) * (1 + s2) + b2)
         return x
 
@@ -131,11 +130,14 @@ class PairTrack(nn.Module):
             p = p + self.contact(contact.float().unsqueeze(-1))
         if self.dist is not None and dist_feats is not None:
             p = p + self.dist(dist_feats.float())
+        p = p.to(torch.bfloat16) if p.is_cuda else p               # pair track in bf16 on GPU
         pmask = (mask[:, :, None] & mask[:, None, :]).unsqueeze(-1).to(p.dtype)
         p = p * pmask
         for blk in self.blocks:
-            p = blk(p, pmask)
-        return self.norm_out(p)
+            # activation checkpointing: keep only the block input, recompute the
+            # ~10 L x L x d intermediates in backward (memory 10x smaller)
+            p = checkpoint(blk, p, pmask, use_reentrant=False) if torch.is_grad_enabled() else blk(p, pmask)
+        return self.norm_out(p.float())
 
 
 class PairFlowNet(nn.Module):
@@ -153,6 +155,9 @@ class PairFlowNet(nn.Module):
         self.t_mlp = nn.Sequential(nn.Linear(d_model, d_model), nn.SiLU(), nn.Linear(d_model, d_model))
         self.pair = PairTrack(D_ESM, d_pair, n_pair_blocks, rel_pos, pair_contact, pair_dist_bins, dropout)
         self.null_pair = nn.Parameter(torch.zeros(1, 1, 1, d_pair))
+        self.pair_bias_norm = nn.LayerNorm(d_pair)
+        self.pair_bias = nn.Linear(d_pair, n_layers * n_heads, bias=False); nn.init.zeros_(self.pair_bias.weight)
+        self.n_heads = n_heads
         self.blocks = nn.ModuleList([PairDiTBlock(d_model, n_heads, rel_pos, dropout, d_pair) for _ in range(n_layers)])
         self.out_norm = nn.LayerNorm(d_model, elementwise_affine=False)
         self.out_ada = nn.Sequential(nn.SiLU(), nn.Linear(d_model, 2 * d_model))
@@ -183,8 +188,10 @@ class PairFlowNet(nn.Module):
         m = mask.unsqueeze(-1).float()
         c_pool = (c_tok * m).sum(1) / m.sum(1).clamp(min=1.0)
         c = self.t_mlp(timestep_embedding(t, self.d_model)) + c_pool
-        for blk in self.blocks:
-            h = blk(h, c, mask, pair)
+        pb_all = self.pair_bias(self.pair_bias_norm(pair)).permute(0, 3, 1, 2)   # (B, n_layers*H, L, L), once
+        H = self.n_heads
+        for i, blk in enumerate(self.blocks):
+            h = blk(h, c, mask, pb_all[:, i * H:(i + 1) * H])
         s, b = self.out_ada(c).unsqueeze(1).chunk(2, dim=-1)
         return self.out_proj(self.out_norm(h) * (1 + s) + b)
 
