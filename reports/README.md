@@ -20,6 +20,7 @@ selection (`--offset 1000` on either scorer); model comparisons use it.
 | report | run | outcome |
 |---|---|---|
 | [h200_full_bs160](h200_full_bs160.md) | FAPE head, batch 160 | stopped at epoch 8, TM 0.462; tracked the batch-96 control |
+| [lf_174M_esmc](lf_174M_esmc.md) | **latent flow 174M, ESMC-6B conditioner, 80k** | **held-out 0.732 / 89% / 6.84 A**, best-of-8 0.763; no-neighbour 0.535 / 62%; conditioner is the biggest lever |
 | [leakage_audit](leakage_audit.md) | **audit** | most of the score is seen folds: on no-neighbour proteins 80k 0.44 vs 473k 0.47 TM; data gain real but small |
 | [lf_459M_afdb](lf_459M_afdb.md) | **latent flow 459M on 473k proteins, 8 H200s** | best of project: **held-out 0.660 / 74% / 9.01 A**, best-of-8 0.716; see leakage_audit |
 | [lf_174M](lf_174M.md) | latent flow 174M, stored L33, 100 epochs | completed; held-out 0.609 / 69%, same ceiling as 459M |
