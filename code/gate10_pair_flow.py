@@ -140,7 +140,10 @@ class PairTrack(nn.Module):
         for blk in self.blocks:
             # activation checkpointing: keep only the block input, recompute the
             # ~10 L x L x d intermediates in backward (memory 10x smaller)
-            p = checkpoint(blk, p, pmask, use_reentrant=False) if torch.is_grad_enabled() else blk(p, pmask)
+            if torch.is_grad_enabled() and os.environ.get("PAIR_CKPT", "1") == "1":
+                p = checkpoint(blk, p, pmask, use_reentrant=False)
+            else:
+                p = blk(p, pmask)
         return self.norm_out(p.float())
 
 
