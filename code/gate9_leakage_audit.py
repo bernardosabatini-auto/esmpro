@@ -58,26 +58,32 @@ run([_FOLDSEEK, "convertalis", f"{W}/valDB", f"{W}/trainDB", f"{W}/aln", f"{W}/a
      "--format-output", "query,target,qtmscore,ttmscore,alntmscore", "--threads", str(a.threads)])
 print(f"search done ({time.perf_counter()-t0:.0f}s)", flush=True)
 
-best = collections.defaultdict(lambda: {"k": 0.0, "a": 0.0, "k_hit": None, "a_hit": None})
+import shutil, gzip
+with open(f"{W}/aln.tsv", "rb") as fi, gzip.open(str(PROJECT / "notes" / "gate9_val_vs_train_aln.tsv.gz"), "wb") as fo:
+    shutil.copyfileobj(fi, fo)
+NORMS = ("qtm", "ttm", "aln", "max")
+best = collections.defaultdict(lambda: {f"{src}_{nm}": 0.0 for src in "ka" for nm in NORMS} | {"k_hit": None, "a_hit": None})
 for line in open(f"{W}/aln.tsv"):
     q, t, qtm, ttm, atm = line.rstrip("\n").split("\t")[:5]
-    q = q.replace(".pdb", ""); tm = max(float(qtm), float(ttm)); src = "k" if t.startswith("k_") else "a"
-    if tm > best[q][src]: best[q][src] = tm; best[q][src + "_hit"] = t.replace(".pdb", "")
-out = {"per_protein": {}, "summary": {}}
+    q = q.replace(".pdb", ""); src = "k" if t.startswith("k_") else "a"
+    vals = {"qtm": float(qtm), "ttm": float(ttm), "aln": float(atm), "max": max(float(qtm), float(ttm))}
+    b = best[q]
+    for nm, v in vals.items():
+        if v > b[f"{src}_{nm}"]: b[f"{src}_{nm}"] = v
+    if vals["qtm"] > b.get(f"{src}_qtm_best", 0.0): b[f"{src}_qtm_best"] = vals["qtm"]; b[f"{src}_hit"] = t.replace(".pdb", "")
+out = {"per_protein": {}, "summary": {}, "note": "qtm = TM normalised by the VALIDATION query length (the leakage-relevant one); "
+       "ttm by the training target length; aln by aligned length; max = max(qtm, ttm) (lenient)."}
 for nm in vsel:
-    b = best[nm]; out["per_protein"][nm] = {"subset": subset[nm], "max_tm_to_100k_train": b["k"], "max_tm_to_afdb_train": b["a"],
-                                          "hit_100k": b["k_hit"], "hit_afdb": b["a_hit"]}
-for sub in ("gate", "heldout", "other"):
-    rows = [v for v in out["per_protein"].values() if v["subset"] == sub]
-    k = np.array([r["max_tm_to_100k_train"] for r in rows]); aa = np.array([r["max_tm_to_afdb_train"] for r in rows]); both = np.maximum(k, aa)
-    s = {"n": len(rows)}
-    for thr in (0.5, 0.7, 0.9):
-        s[f"frac_gt{thr}_100k"] = float((k > thr).mean()); s[f"frac_gt{thr}_afdb"] = float((aa > thr).mean()); s[f"frac_gt{thr}_either"] = float((both > thr).mean())
-    s["mean_max_tm_100k"] = float(k.mean()); s["mean_max_tm_afdb"] = float(aa.mean())
-    s["frac_afdb_closer_than_100k"] = float((aa > k).mean())
-    out["summary"][sub] = s
-    print(f"{sub:8s} n={len(rows):4d}  nearest-train TM>0.5: 100k {s['frac_gt0.5_100k']:.2f} afdb {s['frac_gt0.5_afdb']:.2f} either {s['frac_gt0.5_either']:.2f} | "
-          f">0.7: {s['frac_gt0.7_100k']:.2f} {s['frac_gt0.7_afdb']:.2f} {s['frac_gt0.7_either']:.2f} | >0.9: {s['frac_gt0.9_100k']:.2f} {s['frac_gt0.9_afdb']:.2f} {s['frac_gt0.9_either']:.2f} | "
-          f"mean max TM {s['mean_max_tm_100k']:.3f} / {s['mean_max_tm_afdb']:.3f}", flush=True)
+    b = best[nm]; out["per_protein"][nm] = {"subset": subset[nm], **{k: v for k, v in b.items() if not k.endswith("_best")}}
+for norm in NORMS:
+    for sub in ("gate", "heldout", "other"):
+        rows = [v for v in out["per_protein"].values() if v["subset"] == sub]
+        k = np.array([r[f"k_{norm}"] for r in rows]); aa = np.array([r[f"a_{norm}"] for r in rows]); both = np.maximum(k, aa)
+        s = {"n": len(rows), "mean_100k": float(k.mean()), "mean_afdb": float(aa.mean()), "mean_either": float(both.mean())}
+        for thr in (0.5, 0.6, 0.7, 0.9):
+            s[f"gt{thr}_100k"] = float((k > thr).mean()); s[f"gt{thr}_afdb"] = float((aa > thr).mean()); s[f"gt{thr}_either"] = float((both > thr).mean())
+        out["summary"][f"{norm}/{sub}"] = s
+        print(f"[{norm}] {sub:8s} n={len(rows):4d}  >0.5: {s['gt0.5_100k']:.2f}/{s['gt0.5_either']:.2f}  >0.6: {s['gt0.6_100k']:.2f}/{s['gt0.6_either']:.2f}  "
+              f">0.7: {s['gt0.7_100k']:.2f}/{s['gt0.7_either']:.2f}  >0.9: {s['gt0.9_100k']:.2f}/{s['gt0.9_either']:.2f}  mean {s['mean_100k']:.3f}/{s['mean_either']:.3f}  (100k-only / with AFDB)", flush=True)
 json.dump(out, open(PROJECT / "notes" / "gate9_leakage_audit.json", "w"), indent=1)
 print(f"done ({time.perf_counter()-t0:.0f}s) -> notes/gate9_leakage_audit.json")

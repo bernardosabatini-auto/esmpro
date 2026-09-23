@@ -16,6 +16,7 @@ ap = argparse.ArgumentParser(); ap.add_argument("--ckpt", required=True)
 ap.add_argument("--n", type=int, default=100); ap.add_argument("--k", type=int, default=8)
 ap.add_argument("--cfg-w", type=str, default="1,1.5,2,3,4"); ap.add_argument("--steps", type=int, default=50)
 ap.add_argument("--bs", type=int, default=20)
+ap.add_argument("--names-file", default=None, help="score exactly these val protein names (one per line) instead of the permutation slice")
 ap.add_argument("--offset", type=int, default=0,
                 help="skip this many proteins of the seed-42 permutation; 0 = the gate set, which "
                      "overlaps the selection set. Use >=1000 for a held-out, selection-free score.")
@@ -48,6 +49,9 @@ print(f"checkpoint {a.ckpt}: epoch {meta['epoch']}, train-time TM {meta['tm']:.3
 # identical protein selection to gate6_score_checkpoint.py
 vf = ProteinDatasetFAPE(H5_PATH, "val")
 torch.manual_seed(42); idx = torch.randperm(len(vf))[a.offset:a.offset + a.n].tolist()
+if a.names_file:
+    want = [l.strip() for l in open(a.names_file) if l.strip()]; pos = {n: i for i, n in enumerate(vf.names)}
+    idx = [pos[n] for n in want if n in pos]; print(f"scoring {len(idx)} named proteins from {a.names_file}")
 class Holder:
     def __len__(self): return self.z.shape[0]
 val = Holder(); N = len(idx)
@@ -59,7 +63,7 @@ val.online = online
 val.seqs = [str(vf.h5["val"][vf.names[i]].attrs["sequence"])[:G.MAX_LEN] for i in idx] if online else None
 val.cond = lambda i: ([val.seqs[j] for j in i.tolist()] if online else val.esm[i])
 dec = G.load_decoder(dev)
-print(f"{N} val proteins ({'gate set' if a.offset == 0 else f'held-out, offset {a.offset}'}), {a.steps} ODE steps, K={a.k}")
+print(f"{N} val proteins ({'named list' if a.names_file else ('gate set' if a.offset == 0 else f'held-out, offset {a.offset}')}), {a.steps} ODE steps, K={a.k}")
 print(f"{'w':>4s} {'TM':>6s} {'TM>0.5':>7s} {'TM>0.3':>7s} {'RMSD':>6s} {'best-of-K':>9s} {'cov':>5s} {'s':>4s}")
 rows = {}
 for w in [float(x) for x in a.cfg_w.split(",")]:
@@ -70,4 +74,4 @@ for w in [float(x) for x in a.cfg_w.split(",")]:
           f"{r['coverage']:5.2f} {time.perf_counter()-t0:4.0f}", flush=True)
 json.dump({"ckpt": a.ckpt, "meta": meta, "n": N, "k": a.k, "steps": a.steps,
            "rows": {str(w): r for w, r in rows.items()}},
-          open(PROJECT / "notes" / f"tm_{a.ckpt.replace('.pt', '')}_sweep_off{a.offset}.json", "w"), indent=2)
+          open(PROJECT / "notes" / f"tm_{a.ckpt.replace('.pt', '')}_sweep_{'named_' + os.path.basename(a.names_file).replace('.txt','') if a.names_file else 'off' + str(a.offset)}.json", "w"), indent=2)
