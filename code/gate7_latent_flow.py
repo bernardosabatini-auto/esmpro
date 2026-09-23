@@ -106,30 +106,46 @@ class RamSplit:
             out[r, :n_] = self.esm_flat[o:o + n_]
         return out
 
-    def batches(self, bs, shuffle, gen=None, bucket=True):
-        """Yield (cond, z, mask, ca, idx). With bucket=True, proteins are grouped
-        by length (shuffled within noisy length buckets) and every tensor in the
-        batch is cropped to the longest sequence in it: mean length is ~135, so
-        attention and especially the L^2 pair track cost ~3x less than padding
-        to 256. Batch order is shuffled too."""
+    def batch_plan(self, bs, shuffle, gen=None, bucket=True, budget_cap=0):
+        """List of index tensors, one per batch. bucket=True: proteins grouped by
+        (noisy) length so each batch can be cropped to its longest sequence.
+        budget_cap>0: RESIDUE-BUDGET batching -- the batch size grows for short
+        buckets so that B * Lmax^2 stays ~ bs * 256^2 (the pair track's memory
+        law), capped at budget_cap*bs proteins. This keeps GPU memory full at
+        every step instead of sizing a fixed batch for the 256-residue worst case."""
         N = len(self)
-        if shuffle and bucket:
-            lens = self.mask.sum(1).float()
-            key = lens + torch.rand(N, generator=gen) * 24.0          # noisy sort: bucket width ~24 residues
-            order = torch.argsort(key)
-            starts = torch.arange(0, N, bs)
-            starts = starts[torch.randperm(len(starts), generator=gen)]
-        else:
+        if not (shuffle and bucket):
             order = torch.randperm(N, generator=gen) if shuffle else torch.arange(N)
-            starts = torch.arange(0, N, bs)
-        for s in starts.tolist():
-            i = order[s:s+bs]
-            m = self.mask[i]
-            Lmax = int(m.sum(1).max()) if bucket else MAX_LEN
-            Lmax = max(Lmax, 8)
-            c = self.cond(i)
-            if not self.online: c = c[:, :Lmax]
-            yield c, self.z[i][:, :Lmax], m[:, :Lmax], (self.ca[i][:, :Lmax] if self.ca is not None else None), i
+            return [order[s:s+bs] for s in range(0, N, bs)]
+        lens = self.mask.sum(1).float()
+        key = lens + torch.rand(N, generator=gen) * 24.0              # noisy sort: bucket width ~24 residues
+        order = torch.argsort(key); olens = lens[order]
+        if budget_cap <= 0:
+            plan = [order[s:s+bs] for s in range(0, N, bs)]
+        else:
+            plan, s = [], 0
+            while s < N:
+                # ascending lengths: Lmax of a batch is the length of its last member
+                e = s + 1
+                while e < N:
+                    Lm = max(float(olens[e]), 8.0)
+                    allowed = int(min(budget_cap * bs, max(bs, bs * (MAX_LEN / Lm) ** 2)))
+                    if e - s + 1 > allowed: break
+                    e += 1
+                plan.append(order[s:e]); s = e
+        perm = torch.randperm(len(plan), generator=gen)
+        return [plan[j] for j in perm.tolist()]
+
+    def batch_from(self, i, bucket=True):
+        m = self.mask[i]
+        Lmax = max(int(m.sum(1).max()), 8) if bucket else MAX_LEN
+        c = self.cond(i)
+        if not self.online: c = c[:, :Lmax]
+        return c, self.z[i][:, :Lmax], m[:, :Lmax], (self.ca[i][:, :Lmax] if self.ca is not None else None), i
+
+    def batches(self, bs, shuffle, gen=None, bucket=True, budget_cap=0):
+        for i in self.batch_plan(bs, shuffle, gen, bucket, budget_cap):
+            yield self.batch_from(i, bucket)
 
 
 class ConcatSplit:
@@ -147,6 +163,8 @@ class ConcatSplit:
         self.names = sum((p.names for p in parts), [])
     def __len__(self): return self.z.shape[0]
     cond = RamSplit.cond
+    batch_plan = RamSplit.batch_plan
+    batch_from = RamSplit.batch_from
     batches = RamSplit.batches
 
 
@@ -452,6 +470,9 @@ def parse_args():
     p.add_argument("--esm-kind", choices=["esm2", "esmc"], default="esm2",
                    help="online conditioner: HF ESM-2 (1280-d) or ESM Cambrian via transformers AutoModel (ESMC-6B: 2560-d)")
     p.add_argument("--no-layer-mix", action="store_true", help="online mode: use only the last layer")
+    p.add_argument("--budget-cap", type=float, default=0.0,
+                   help="residue-budget batching: batch grows up to this multiple of --batch-size for short "
+                        "buckets so B*Lmax^2 ~ const (0 = fixed batch size)")
     p.add_argument("--h5-path", default="", help="alternate dataset HDF5 with the 100k layout (e.g. dataset_100k_esmc.h5 "
                    "holding ESMC-6B embeddings under the esm2_emb key); stored mode reads train and val from it")
     p.add_argument("--extra-train-h5", default="", help="comma-separated HDF5 files whose 'train' group is "
@@ -544,7 +565,12 @@ def main(a):
 
     for epoch in range(start, a.epochs):
         t0 = time.perf_counter(); net.train(); tl, nb = 0.0, 0
-        for c, z, mask, _, _ in train.batches(a.batch_size, True, gen):
+        plan = train.batch_plan(a.batch_size, True, gen, budget_cap=a.budget_cap)
+        if ddp:   # variable-size batching gives ranks different step counts; use the minimum
+            n_t = torch.tensor([len(plan)], device=device); dist.all_reduce(n_t, op=dist.ReduceOp.MIN)
+            plan = plan[:int(n_t.item())]
+        for bi in plan:
+            c, z, mask, _, _ = train.batch_from(bi)
             z, mask = z.to(device), mask.to(device)
             with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
                 esm = embed(c, L=mask.shape[1]) if embed is not None else c.to(device, non_blocking=True)
@@ -563,7 +589,7 @@ def main(a):
             if nb == 1 or nb % 200 == 0:
                 mem = torch.cuda.max_memory_allocated() / 1e9 if device.type == "cuda" else 0
                 say(f"    batch {nb}: loss={loss.item():.4f} gnorm={gn:.2f} lr={sched.get_last_lr()[0]:.2e} "
-                    f"peak GPU={mem:.1f} GB")
+                    f"B={z.shape[0]} L={z.shape[1]} peak GPU={mem:.1f} GB")
             if a.smoke and nb >= 3: break
         train_loss = tl / max(nb, 1)
 

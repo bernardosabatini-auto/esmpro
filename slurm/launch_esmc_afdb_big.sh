@@ -7,5 +7,5 @@ D=$R/data/phase1_dataset
 LABEL=${LABEL:-lf_459M_esmc_afdb} BS=${BS:-192}
 EXTRA="--h5-path $D/dataset_100k_esmc.h5 --extra-train-h5 $D/dataset_afdb_train_0_esmc.h5,$D/dataset_afdb_train_1_esmc.h5 \
   ${PAIR:-} --d-model ${DM:-1024} --n-layers ${NL:-24} --n-heads ${NH:-16} --batch-size $BS --lr 4e-4 --warmup 1000 \
-  --epochs ${EPOCHS:-60} --eval-every 1 --eval-n 100 --patience 8 --cfg-w 2 --workers 4 --sample-steps 25"
-LABEL=$LABEL EXTRA="$EXTRA" SCRIPT="${SCRIPT:-}" sbatch --nodes=2 --mem=${MEM:-1450G} ${SBATCH_EXTRA:-} --export=ALL $R/slurm/train_latent_flow_multinode.sbatch
+  --epochs ${EPOCHS:-60} --eval-every 1 --eval-n 100 --patience 8 --cfg-w 2 --workers 4 --sample-steps 25 --budget-cap ${BUDGET:-3}"
+LABEL=$LABEL EXTRA="$EXTRA" SCRIPT="${SCRIPT:-}" sbatch --nodes=2 --mem=${MEM:-1400G} ${SBATCH_EXTRA:-} --export=ALL $R/slurm/train_latent_flow_multinode.sbatch

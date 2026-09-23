@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=4
 #SBATCH --gres=gpu:4
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=1450G
+#SBATCH --mem=1400G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/logs/%x_%j.out
 #SBATCH --signal=B:USR1@900
