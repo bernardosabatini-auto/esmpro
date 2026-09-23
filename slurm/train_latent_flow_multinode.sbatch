@@ -23,11 +23,11 @@ MASTER=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)
 export MASTER_ADDR=$(getent hosts $MASTER | awk '{print $1}' | head -1)
 export MASTER_PORT=$((20000 + SLURM_JOB_ID % 20000))
 export NCCL_ASYNC_ERROR_HANDLING=1 OMP_NUM_THREADS=4
-resubmit() { echo "[$(date)] resubmitting for resume"; cd $ESM_PROAE_ROOT && LABEL=$LABEL EXTRA="$EXTRA" sbatch --nodes=$SLURM_JOB_NUM_NODES --export=ALL slurm/train_latent_flow_multinode.sbatch; }
+resubmit() { echo "[$(date)] resubmitting for resume"; cd $ESM_PROAE_ROOT && LABEL=$LABEL EXTRA="$EXTRA" SCRIPT="${SCRIPT:-}" PAIR_CKPT="${PAIR_CKPT:-1}" sbatch --nodes=$SLURM_JOB_NUM_NODES --export=ALL slurm/train_latent_flow_multinode.sbatch; }
 trap resubmit USR1
 RES=""; [ -f "$LAST" ] && RES="--resume last_${LABEL}.ckpt"
 echo "nodes: $SLURM_JOB_NODELIST  master: $MASTER -> $MASTER_ADDR:$MASTER_PORT  tasks: $SLURM_NTASKS"
-srun --kill-on-bad-exit=1 bash -c 'export RANK=$SLURM_PROCID WORLD_SIZE=$SLURM_NTASKS LOCAL_RANK=$SLURM_LOCALID; exec python -u gate7_latent_flow.py --label '"$LABEL"' '"${EXTRA:-}"' '"$RES" &
+srun --kill-on-bad-exit=1 bash -c 'export RANK=$SLURM_PROCID WORLD_SIZE=$SLURM_NTASKS LOCAL_RANK=$SLURM_LOCALID; exec python -u '"${SCRIPT:-gate7_latent_flow.py}"' --label '"$LABEL"' '"${EXTRA:-}"' '"$RES" &
 PID=$!
 while kill -0 $PID 2>/dev/null; do wait $PID; RC=$?; done
 echo "[$(date)] srun exited with $RC"
