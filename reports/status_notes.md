@@ -16,3 +16,4 @@
 - 2026-09-23 20:15 — `pf_459M_esmc_afdb` epoch 20 (2h46m): **TM 0.704 / 87% / RMSD 7.46 A** (selection set), still rising ~0.003/epoch. Held-out and no-neighbour scoring deferred to the plateau (no-backfill rule).
 - 2026-09-23 20:50 — Pair track (64-dim) at epoch 24: ESM-2 0.587 vs no-pair 0.575; ESMC-6B 0.686 vs no-pair 0.669. Lead stabilised at +0.01-0.02 on the selection set; no-neighbour comparison pending at the plateau.
 - 2026-09-23 22:00 — `lf_174M_esmc` finished (100 epochs). **Held-out 0.732 / 89% / 6.84 A** (w=1.5), best-of-8 0.763; no-neighbour <0.6: 0.535 / 62%. Report: `lf_174M_esmc.md`. GPUs in use: 8 (H200) + 3 RTX pair ablations.
+- 2026-09-23 22:30 — `pf_174M_p128x8` (128-dim pair, batch 64) epoch 16: TM 0.597-0.602 / 66-69% vs 0.570 (64-dim pair) and 0.552 (no pair) at the same epoch on ESM-2. Larger pair track keeps a ~+0.03 lead over the small one.
