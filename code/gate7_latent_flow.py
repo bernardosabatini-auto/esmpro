@@ -106,11 +106,30 @@ class RamSplit:
             out[r, :n_] = self.esm_flat[o:o + n_]
         return out
 
-    def batches(self, bs, shuffle, gen=None):
-        N = len(self); order = torch.randperm(N, generator=gen) if shuffle else torch.arange(N)
-        for s in range(0, N, bs):
+    def batches(self, bs, shuffle, gen=None, bucket=True):
+        """Yield (cond, z, mask, ca, idx). With bucket=True, proteins are grouped
+        by length (shuffled within noisy length buckets) and every tensor in the
+        batch is cropped to the longest sequence in it: mean length is ~135, so
+        attention and especially the L^2 pair track cost ~3x less than padding
+        to 256. Batch order is shuffled too."""
+        N = len(self)
+        if shuffle and bucket:
+            lens = self.mask.sum(1).float()
+            key = lens + torch.rand(N, generator=gen) * 24.0          # noisy sort: bucket width ~24 residues
+            order = torch.argsort(key)
+            starts = torch.arange(0, N, bs)
+            starts = starts[torch.randperm(len(starts), generator=gen)]
+        else:
+            order = torch.randperm(N, generator=gen) if shuffle else torch.arange(N)
+            starts = torch.arange(0, N, bs)
+        for s in starts.tolist():
             i = order[s:s+bs]
-            yield self.cond(i), self.z[i], self.mask[i], (self.ca[i] if self.ca is not None else None), i
+            m = self.mask[i]
+            Lmax = int(m.sum(1).max()) if bucket else MAX_LEN
+            Lmax = max(Lmax, 8)
+            c = self.cond(i)
+            if not self.online: c = c[:, :Lmax]
+            yield c, self.z[i][:, :Lmax], m[:, :Lmax], (self.ca[i][:, :Lmax] if self.ca is not None else None), i
 
 
 class ConcatSplit:
@@ -527,7 +546,7 @@ def main(a):
         for c, z, mask, _, _ in train.batches(a.batch_size, True, gen):
             z, mask = z.to(device), mask.to(device)
             with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
-                esm = embed(c) if embed is not None else c.to(device, non_blocking=True)
+                esm = embed(c, L=mask.shape[1]) if embed is not None else c.to(device, non_blocking=True)
                 loss = fm_loss(net, z, esm, mask, a.p_drop)
             opt.zero_grad(set_to_none=True); loss.backward()
             gn = torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)

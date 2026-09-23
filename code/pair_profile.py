@@ -2,9 +2,9 @@
 import os, sys, time, torch
 sys.path.insert(0, os.environ["ESM_PROAE_ROOT"] + "/code"); sys.argv = ["x"]
 import gate7_latent_flow as G, gate10_pair_flow as G10
-dev = torch.device("cuda"); B, L = 128, 256
+dev = torch.device("cuda"); B, L = 128, int(os.environ.get("PROF_L", "160"))   # 160 ~ a typical bucketed batch length
 esm = torch.randn(B, L, 1280, device=dev, dtype=torch.float16); mask = torch.ones(B, L, dtype=torch.bool, device=dev)
-mask[:, 200:] = False; z = torch.randn(B, L, 8, device=dev)
+mask[:, L-8:] = False; z = torch.randn(B, L, 8, device=dev)
 def bench(fn, n=3):
     fn(); torch.cuda.synchronize(); t = time.perf_counter()
     for _ in range(n): fn()

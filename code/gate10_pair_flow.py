@@ -117,6 +117,10 @@ class PairTrack(nn.Module):
         self.n_dist_bins = n_dist_bins
         self.dist = nn.Linear(n_dist_bins, d_pair) if n_dist_bins else None   # recycling hook
         self.blocks = nn.ModuleList([PairBlock(d_pair, dropout) for _ in range(n_blocks)])
+        if os.environ.get("PAIR_COMPILE", "1") == "1" and torch.cuda.is_available():
+            # fuse the memory-bound elementwise chains (gates, norms, masks); the
+            # triangle contraction itself is cheap
+            self.blocks = nn.ModuleList([torch.compile(b, dynamic=True) for b in self.blocks])
         self.norm_out = nn.LayerNorm(d_pair)
 
     def forward(self, s, mask, contact=None, dist_feats=None):

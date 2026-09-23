@@ -8,4 +8,4 @@
 #SBATCH --time=00:20:00
 #SBATCH --output=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/logs/%x_%j.out
 source /n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/slurm/env.sh
-python -u $ESM_PROAE_ROOT/code/pair_profile.py 2>&1 | grep -v -i warn; echo PROFILE_DONE
+for L in 160 256; do echo "== L=$L compiled"; PROF_L=$L python -u $ESM_PROAE_ROOT/code/pair_profile.py 2>&1 | grep -v -i -E "warn|Inductor|torch._dynamo"; done; echo "== L=160 uncompiled"; PAIR_COMPILE=0 PROF_L=160 python -u $ESM_PROAE_ROOT/code/pair_profile.py 2>&1 | grep -v -i warn; echo PROFILE_DONE
