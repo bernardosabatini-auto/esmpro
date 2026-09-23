@@ -1,10 +1,10 @@
 # Live status
 
-Updated 2026-09-23 13:58 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-23 14:04 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
-| lf_174M_esmc | latent flow | 47955320 | running 3:32:23 on kempner_rtx | 42 | 0.692 (w=2.0) | 84% | 7.54 | 100% |
+| lf_174M_esmc | latent flow | 47955320 | running 3:38:26 on kempner_rtx | 43 | 0.692 (w=2.0) | 84% | 7.54 | 100% |
 
 ## Notes (held-out checks of running models)
 
@@ -17,3 +17,4 @@ Updated 2026-09-23 13:58 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-23 14:30 — **ESMC-6B held-out (selection-free), `best_lf_174M_esmc.pt` epoch 26, 80k train: TM 0.695 / 87% / RMSD 7.98 A / best-of-8 0.747**; no-neighbour (<0.5) subset 0.468 / 35% (ESM-2 twin: 0.609 / 69% / 10.06 and 0.396 / 14%). The conditioner gain generalises to novel folds. Run still rising (ep 29: 0.671 selection, RMSD 7.73). Next: ESMC-6B embeddings for the 393k AFDB proteins, then ESMC + 473k on the H200s.
 - 2026-09-23 15:20 — ESMC-6B model (epoch-26 ckpt) on the no-neighbour <0.6 subset (n=266): **0.516 / 53%** (ESM-2 80k: 0.439 / 29%; ESM-2 473k 459M: 0.474 / 41%). All three ESMC numbers (held-out 0.695, <0.6 0.516, <0.5 0.468) beat every previous model, so the conditioner gain is generalisation, not neighbours.
 - 2026-09-23 16:20 — First pair-track evaluation (`pf_174M_p128x8`, ESM-2, batch 64): TM 0.369 / 17% at epoch 2 vs 0.156 (epoch 2) and 0.314 (epoch 4, equal steps) for the no-pair ESM-2 twin. Pair reasoning leads early; 1244 s/epoch after bucketing + compile (was 6752 s).
+- 2026-09-23 16:35 — **Pair track helps at equal batch and epochs (80k, 174M, batch 128):** ESM-2: pair 0.429 vs no-pair 0.314 at epoch 4 (+0.11); ESMC-6B: pair 0.508 vs no-pair 0.478 (+0.03). Pair cost after bucketing + compile + checkpointing: 585 s/epoch vs 268 s (2.2x). The 128-dim pair track (batch 64) is at 0.369 at epoch 2.
