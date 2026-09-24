@@ -462,6 +462,8 @@ def parse_args():
     p.add_argument("--sample-steps", type=int, default=50)
     p.add_argument("--cfg-w", type=str, default="1.0,2.0", help="guidance weights to evaluate")
     p.add_argument("--resume", type=str, default=None)
+    p.add_argument("--warm-start", type=str, default=None, help="best_<label>.pt whose EMA weights initialise net AND ema (weights only; "
+                   "fresh optimizer and schedule). --resume supersedes it. Architecture must match.")
     p.add_argument("--workers", type=int, default=8)
     p.add_argument("--smoke", action="store_true", help="tiny CPU/GPU run, no eval")
     p.add_argument("--esm", choices=["stored", "online"], default="stored",
@@ -563,6 +565,14 @@ def main(a):
         gen.set_state(st["gen"].cpu())                       # generator states must be CPU byte tensors
         if is_main: torch.set_rng_state(st["torch_rng"].cpu())
         say(f"  RESUMED at epoch {start}, step {step}, best TM {best_tm:.3f}")
+    elif a.warm_start:
+        wmeta = json.load(open(str(CKPT_DIR / a.warm_start) + ".meta.json"))
+        warch = {k: wmeta[k] for k in arch if k in wmeta}
+        if warch != arch or wmeta.get("extra_arch", {}) != getattr(raw, "extra_arch", {}):
+            raise ValueError(f"warm-start arch mismatch: {warch} / {wmeta.get('extra_arch')} vs {arch} / {getattr(raw, 'extra_arch', {})}")
+        w = torch.load(str(CKPT_DIR / a.warm_start), weights_only=True, map_location=device)
+        raw.load_state_dict(w); ema.load_state_dict(w)
+        say(f"  WARM START from {a.warm_start} (epoch {wmeta.get('epoch')}, TM {wmeta.get('tm')}); fresh optimizer and schedule")
 
     for epoch in range(start, a.epochs):
         t0 = time.perf_counter(); net.train(); tl, nb = 0.0, 0
