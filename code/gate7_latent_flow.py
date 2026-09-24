@@ -29,7 +29,9 @@ from gate6_fape_train import (ProteinDatasetFAPE, H5_PATH, PROJECT, fape_loss,
                               _write_pseudo_backbone_pdb, _foldseek_tm)
 from gate6_corrected_eval import kabsch_rmsd
 
-D_LAT, D_ESM, MAX_LEN = 8, 1280, 256
+D_LAT, D_ESM = 8, 1280
+MAX_LEN = int(os.environ.get("ESM_PROAE_MAX_LEN", "256"))   # residue window; 512 for the long-protein stage
+BUDGET_REF = 256                                              # the residue budget is always bs x 256^2, whatever the window
 PAD8 = os.environ.get("PAD8", "1") == "1"                 # pad bucket length to a multiple of 8
 DIT_COMPILE = os.environ.get("DIT_COMPILE", "1") == "1"   # torch.compile the transformer blocks
 CKPT_DIR = PROJECT / "data" / "phase1_dataset"
@@ -131,7 +133,7 @@ class RamSplit:
                 e = s + 1
                 while e < N:
                     Lm = max(float(olens[e]), 8.0)
-                    allowed = int(min(budget_cap * bs, max(bs, bs * (MAX_LEN / Lm) ** 2)))
+                    allowed = int(min(budget_cap * bs, max(1, bs * (BUDGET_REF / Lm) ** 2)))   # floor 1: at L=512 a batch is bs/4 proteins
                     if e - s + 1 > allowed: break
                     e += 1
                 plan.append(order[s:e]); s = e
@@ -371,6 +373,18 @@ def sample(net, esm, mask, n_steps=50, cfg_w=1.0, gen=None, project=True):
 # Structure evaluation through the frozen decoder
 # ---------------------------------------------------------------------------
 
+def extend_pos_table(sd, target_sd):
+    """Warm-starting a 512-window model from a 256-window checkpoint: keep the learned rows of the
+    absolute position table and fill the new rows with the mean learned row (the relative-position
+    attention bias carries the local order). Any other shape mismatch is left to load_state_dict."""
+    for k, tv in target_sd.items():
+        if k.endswith("pos.weight") and k in sd and sd[k].shape != tv.shape and sd[k].shape[1] == tv.shape[1]:
+            old = sd[k]; new = old.mean(0, keepdim=True).repeat(tv.shape[0], 1).to(old.dtype)
+            n = min(old.shape[0], tv.shape[0]); new[:n] = old[:n]; sd[k] = new
+            print(f"  position table {tuple(old.shape)} -> {tuple(tv.shape)} (new rows = mean row)", flush=True)
+    return sd
+
+
 def adapt_state_dict(sd, target_keys):
     """compiled-key matching plus the fused/unfused triangle-update conversion (gate10)."""
     sd = match_compiled_keys(sd, target_keys)
@@ -605,6 +619,7 @@ def main(a):
             raise ValueError(f"warm-start arch mismatch: {warch} / {wex} vs {arch} / {rex}")
         w = torch.load(str(CKPT_DIR / a.warm_start), weights_only=True, map_location=device)
         w = adapt_state_dict(w, raw.state_dict().keys())
+        w = extend_pos_table(w, raw.state_dict())
         raw.load_state_dict(w); ema.load_state_dict(w)
         say(f"  WARM START from {a.warm_start} (epoch {wmeta.get('epoch')}, TM {wmeta.get('tm')}); fresh optimizer and schedule")
 
