@@ -11,6 +11,7 @@ import os, sys, gzip, subprocess, collections, argparse, tempfile
 ROOT = os.environ["ESM_PROAE_ROOT"]; D = f"{ROOT}/data/pdb"
 ap = argparse.ArgumentParser(); ap.add_argument("--max-res", type=float, default=3.0); ap.add_argument("--min-id", type=float, default=0.5)
 ap.add_argument("--min-len", type=int, default=32); ap.add_argument("--max-len", type=int, default=256); ap.add_argument("--threads", type=int, default=8)
+ap.add_argument("--out", default=None)
 a = ap.parse_args()
 method = {}
 for l in open(f"{D}/pdb_entry_type.txt"):
@@ -45,7 +46,7 @@ W = tempfile.mkdtemp(prefix="pdbsel_")
 with open(f"{W}/cand.fasta", "w") as f:
     for seq, (pid, ch, r, m) in cands.items(): f.write(f">{pid}_{ch}\n{seq}\n")
 # remove CASP homologs
-subprocess.run(["mmseqs", "easy-search", f"{ROOT}/data/phase1_dataset/casp_seqs.fasta", f"{W}/cand.fasta", f"{W}/casp.m8", f"{W}/tmp",
+subprocess.run(["mmseqs", "easy-search", os.environ.get("CASP_FASTA", f"{ROOT}/data/phase1_dataset/casp_seqs.fasta"), f"{W}/cand.fasta", f"{W}/casp.m8", f"{W}/tmp",
                 "-s", "7.5", "-e", "1e-3", "--max-seqs", "5000", "--threads", str(a.threads), "--format-output", "query,target,fident,qcov,tcov", "-v", "0"], check=True)
 bad = set()
 for l in open(f"{W}/casp.m8"):
@@ -66,10 +67,11 @@ for rep, mems in clusters.items():
     best = min(mems, key=lambda n: byname[n][2]); pid, ch, r, m, n = byname[best]
     rows.append((pid, ch, n, r, m, len(mems)))
 rows.sort()
-with open(f"{D}/selected_chains.tsv", "w") as f:
+OUT = a.out or f"{D}/selected_chains.tsv"
+with open(OUT, "w") as f:
     f.write("pdb_id\tchain\tlength\tresolution\tmethod\tcluster_size\n")
     for r_ in rows: f.write("\t".join(map(str, r_)) + "\n")
 import numpy as np
 L = np.array([r_[2] for r_ in rows]); R = np.array([r_[3] for r_ in rows])
-print(f"{len(rows)} clusters at {a.min_id:.0%} identity -> selected_chains.tsv; length median {np.median(L):.0f}, resolution median {np.median(R):.2f}, "
+print(f"{len(rows)} clusters at {a.min_id:.0%} identity -> {os.path.basename(OUT)}; length median {np.median(L):.0f}, resolution median {np.median(R):.2f}, "
       f"{sum(r_[4]=='EM' for r_ in rows)} EM; {len(set(r_[0] for r_ in rows))} distinct entries")

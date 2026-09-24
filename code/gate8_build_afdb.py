@@ -27,7 +27,7 @@ from pathlib import Path
 from multiprocessing import Pool
 sys.path.insert(0, ROOT + "/ProteinAE_v1"); sys.path.insert(0, ROOT + "/code")
 PROJECT = Path(ROOT); DATA = PROJECT / "data" / "phase1_dataset"
-MAX_LEN, MIN_LEN = 256, 32
+MAX_LEN, MIN_LEN = int(os.environ.get("BUILD_MAX_LEN", "256")), int(os.environ.get("BUILD_MIN_LEN", "32"))
 
 three_to_one = {'ALA': 'A', 'CYS': 'C', 'ASP': 'D', 'GLU': 'E', 'PHE': 'F', 'GLY': 'G', 'HIS': 'H', 'ILE': 'I',
                 'LYS': 'K', 'LEU': 'L', 'MET': 'M', 'ASN': 'N', 'PRO': 'P', 'GLN': 'Q', 'ARG': 'R', 'SER': 'S',

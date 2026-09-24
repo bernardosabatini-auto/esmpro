@@ -11,7 +11,8 @@ GPU time ~25 min on one RTX (0.94 s per 64 sequences).
 import os, sys, time, argparse, h5py, numpy as np, torch
 ROOT = os.environ["ESM_PROAE_ROOT"]; sys.path.insert(0, ROOT + "/code")
 import gate7_latent_flow as G
-ap = argparse.ArgumentParser(); ap.add_argument("--splits", default="train,val"); ap.add_argument("--bs", type=int, default=64)
+ap = argparse.ArgumentParser(); ap.add_argument("--splits", default="train,val")
+ap.add_argument("--sort", action="store_true", help="embed in length order (less padding)"); ap.add_argument("--bs", type=int, default=64)
 ap.add_argument("--out", default=str(G.PROJECT / "data/phase1_dataset/dataset_100k_esmc.h5"))
 ap.add_argument("--esm-path", default=str(G.PROJECT / "data/esmc6b"))
 ap.add_argument("--src", default=str(G.H5_PATH), help="source HDF5 with split groups holding z, ca_coords and a sequence attr")
@@ -24,12 +25,14 @@ t0 = time.perf_counter()
 for split in a.splits.split(","):
     g_out = out.require_group(split); names = list(src[split].keys())
     todo = [n for n in names if n not in g_out]
+    if a.sort: todo.sort(key=lambda n: len(str(src[split][n].attrs['sequence'])))
     print(f"{split}: {len(names)} proteins, {len(todo)} to do", flush=True)
     for s in range(0, len(todo), a.bs):
         batch = todo[s:s + a.bs]
         seqs = [str(src[split][n].attrs["sequence"]) for n in batch]
         with torch.no_grad(), torch.amp.autocast("cuda", dtype=torch.bfloat16):
-            e = emb(seqs).float().cpu().numpy().astype(np.float16)          # (B, 256, 2560)
+            Lb = min(max(len(q) for q in seqs), int(os.environ.get('BUILD_MAX_LEN', '256'))); Lb = (Lb + 7) // 8 * 8
+            e = emb(seqs, L=Lb).float().cpu().numpy().astype(np.float16)    # (B, Lb, d)
         for i, n in enumerate(batch):
             gi = src[split][n]; L = gi["ca_coords"].shape[0]
             g = g_out.create_group(n)

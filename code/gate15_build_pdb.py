@@ -43,7 +43,7 @@ def parse_chain(text, chain):
         at = atoms[k]; coords[i, 0], coords[i, 1], coords[i, 2], coords[i, 4] = at["N"], at["CA"], at["C"], at["O"]
     return seq, coords
 
-MIN_OBS, MIN_FRAC, MAX_LEN = 32, 0.8, 256
+MIN_OBS, MIN_FRAC, MAX_LEN = 32, 0.8, int(os.environ.get("BUILD_MAX_LEN", "256"))
 def _one(row):
     pid, ch, n_seqres, res, meth = row
     from canonicalize import canonicalize_pyg_data
