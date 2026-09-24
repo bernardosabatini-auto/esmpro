@@ -132,8 +132,11 @@ class PairTrack(nn.Module):
         p = p + self.relpos(rel).unsqueeze(0)
         if self.use_contact and contact is not None:
             p = p + self.contact(contact.float().unsqueeze(-1))
-        if self.dist is not None and dist_feats is not None:
-            p = p + self.dist(dist_feats.float())
+        if self.dist is not None:
+            if dist_feats is not None:
+                p = p + self.dist(dist_feats.float())
+            else:   # no geometry this step: still touch the parameters so DDP sees them every iteration
+                p = p + self.dist.bias + 0.0 * self.dist.weight.sum()
         p = p.to(torch.bfloat16) if p.is_cuda else p               # pair track in bf16 on GPU
         pmask = (mask[:, :, None] & mask[:, None, :]).unsqueeze(-1).to(p.dtype)
         p = p * pmask
