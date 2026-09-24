@@ -1,12 +1,9 @@
-# pf_459M_p128x8_esmc_afdb — latent flow run
+# pf_459M_p128x8_esmc_afdb — main line: 128-dim x 8 pair track + ESMC-6B + 473k on 8 H200s
 
-**Job** 48083691. Log `logs/lf_multinode_48083691.out`.
+**Job** 48083691, kempner_h200, 2 nodes x 4 H200 (8 GPUs, 1400 GB host RAM per node), 2026-09-23 22:37 to 2026-09-24 09:36 (11.0 h). Early-stopped on TM at epoch 50 (patience 8), best epoch 42. Log `logs/lf_multinode_48083691.out`.
 
 ## Configuration
-`code/gate7_latent_flow.py`; arch {'d_model': 1024, 'n_layers': 24, 'n_heads': 16, 'dropout': 0.0, 'self_cond': True, 'd_cond': 2560}; 463.9M params; batch 96 per GPU; lr 0.0004; warmup 1000; EMA 0.999; p_drop 0.1; sample steps 25; eval every 1 on 100 proteins.
-
-Data-parallel world 8, effective batch 768.
-Peak GPU 76.2 GB.
+`code/gate10_pair_flow.py`: DiT d1024 x 24L x 16 heads + **128-dim pair track, 8 gated triangular-multiplication blocks** (checkpointed, bf16, compiled); stored ESMC-6B embeddings (2560-d); train = 80k original + 393k AFDB additions = 473k proteins; residue-budget batching 96 x 256^2 per GPU (cap 3x), peak GPU 114 GB of 141; lr 4e-4, warm-up 1000, cosine over 60 epochs; CFG dropout 0.1, self-conditioning, EMA; eval every epoch on the 100 selection proteins at w=2, 25 Euler steps. ~796 s/epoch (~280 steps). Same recipe as `pf_459M_esmc_afdb` except the pair track (64 x 6 there).
 
 ## Curve
 | epoch | train | val | TM (best w) | TM>0.5 | RMSD | coverage |
@@ -64,8 +61,18 @@ Peak GPU 76.2 GB.
 
 Best TM 0.7406759999999999 at epoch 42.
 
+## Scores (`best_pf_459M_p128x8_esmc_afdb.pt`, epoch 42; w = 2, 50 Euler steps, K = 8; coverage 100/100 everywhere)
+| set | this run | 64-dim pair predecessor (`pf_459M_esmc_afdb`) |
+|---|---|---|
+| selection set (train-time, 25 steps) | 0.741 / 88 % / 6.84 A at epoch 42 | 0.740 / 89 % / 6.82 A at epoch 60 |
+| **held-out (offset 1000, n=100)** | **0.758 / 90 % / 6.13 A**, best-of-8 0.796 (w=1.5: 0.755) | 0.758 / 88 % / 6.51 A, best-of-8 0.792 |
+| no-neighbour < 0.6 (n=266) | 0.573 / 65 % / 12.69 A, bo8 0.632 | 0.567 / 64 % |
+| no-neighbour < 0.5 (n=93) | 0.514 / 42 % / 15.35 A, bo8 0.577 | 0.512 / 41 % |
+| **CASP15/16 experimental (n=80)** | **0.703 / 74 % / 8.10 A**, bo8 0.745 | 0.698 / 72 % / 8.32 A, bo8 0.743 |
+| ESMFold2-Fast, same sets | held-out 0.753 / 85 % / 7.18 A; CASP 0.741 / 79 % / 7.15 A | |
+
 ## Outcome
-TODO
+The larger pair track reached the 64-dim run's final selection-set score 18 epochs earlier and finished +0.001 above it; on every independent set it is +0.002 to +0.006 TM, +2 points of correct folds, and 0.2-0.4 A better RMSD. All within one standard error of the predecessor, all in the same direction, and exactly what the three 80k ablations predicted (pair capacity = convergence lever, ~+0.01 at most). Best model in the project on every set: held-out 0.758 / 90 %, novel-fold subsets 0.573 and 0.514, CASP 0.703 / 74 %. Against ESMFold2-Fast: ahead by 0.005 TM and 5 points of correct folds on AFDB held-out, behind by 0.038 TM and 5 points on experimental CASP coordinates. Coverage 100 % at all 50 evaluations.
 
 ## What it changed
-TODO
+Closes the pair-size axis at scale: 128 x 8 is the configuration to keep (faster, marginally better, fits at 114 GB), but pair capacity is not where the next 0.05 is. Its checkpoint is the warm start for the two fine-tune arms now running (`pf_459M_p128x8_pdbft` with 13 % experimental PDB targets, `pf_459M_p128x8_ctlft` without), which test the one lever the CASP benchmark pointed at. The remaining gap to ESMFold2-Fast on experimental structures (0.04) is smaller than the gap between our ESM-2 and ESMC-6B runs (0.17), so the conditioner and the training targets, not the architecture, remain the levers.

@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-24 09:43 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-24 10:14 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -41,3 +41,4 @@ Updated 2026-09-24 09:43 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 09:20 — experimental PDB target set built (17,921 chains, ESMC embeddings, CASP/val guards); round trip on experimental structures 0.996-0.999 TM. Report `pdb_build.md`. Next: fine-tune the H200 checkpoint on 473k + PDB when job 48083691 ends (~15:00). GPUs: only the 8 H200s (epoch 33, 0.733).
 - 2026-09-24 09:50 — queued behind the H200 run (job 48083691, ends ~15:00): `score_full` of its best checkpoint on one RTX (held-out, no-neighbour, CASP), then two 8-H200 fine-tune arms of 8 epochs at lr 1e-4 from that checkpoint: `pf_459M_p128x8_pdbft` (473k + PDB set x4 ≈ 13 % experimental targets) and `pf_459M_p128x8_ctlft` (same without PDB). One run at a time on the H200s.
 - 2026-09-24 09:50 — `pf_459M_p128x8_esmc_afdb` finished: early-stopped at epoch 50, best selection-set TM 0.741 / 88% / 6.84 A at epoch 42 (64-dim run: 0.740 at epoch 60). Full scoring running on one RTX; `pf_459M_p128x8_pdbft` fine-tune (473k + PDB x4 = 13 %, warm start confirmed, loss 0.054 at step 1) running on the 8 H200s; control fine-tune queued behind it.
+- 2026-09-24 10:25 — `pf_459M_p128x8_esmc_afdb` scored and reported: held-out 0.758 / 90% / 6.13 A (bo8 0.796), no-neighbour 0.573 / 0.514, CASP 0.703 / 74% / 8.10 A. Best model on every set; +0.005 over the 64-dim run. PDB fine-tune at epoch 2 (selection set 0.734-0.737; CASP is the test). GPUs: 8 H200s.

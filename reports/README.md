@@ -47,3 +47,4 @@ See also [PLAN.md](PLAN.md) for the next steps and [STATUS.md](STATUS.md) for li
 | [casp_benchmark](casp_benchmark.md) | 80 CASP15/16 experimental domains <=256 aa, all checkpoints vs ESMFold2-Fast | ours 0.698 / 72%, ESMFold2-Fast 0.741 / 79%; ordering of runs preserved; best-of-8 ties ESMFold2 |
 | [sample_selector](sample_selector.md) | training-free best-of-8 selection (consensus, re-encoding, decoder spread) | consensus recovers 15-27% of the oracle gap (+0.01 TM); the other signals nothing |
 | [pdb_build](pdb_build.md) | 17,896 experimental PDB chains (<=3 A, 50% id clusters, CASP and val guards) as training targets | built in 20 GPU-min; ProteinAE round trip on experimental structures 0.996-0.999 TM |
+| [pf_459M_p128x8_esmc_afdb](pf_459M_p128x8_esmc_afdb.md) | main line: pair 128x8 + ESMC-6B + 473k, 8 H200 | **held-out 0.758 / 90% / 6.13 A; CASP 0.703 / 74%**; best model so far, +0.005 over the 64-dim run, 18 epochs faster |
