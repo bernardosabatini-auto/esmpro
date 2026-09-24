@@ -16,7 +16,7 @@ F='warn|INFO|return data|Loading weights|UNEXPECTED|^Key|^---|^Notes|can be igno
 [ -e $D/dataset_casp_esmc.h5 ] || python -u gate11_precompute_esmc.py --src $D/dataset_casp.h5 --splits val --out $D/dataset_casp_esmc.h5 --kind esmc --bs 16 2>&1 | grep -v -i -E "$F"
 [ -e $D/dataset_casp_esm2.h5 ] || python -u gate11_precompute_esmc.py --src $D/dataset_casp.h5 --splits val --out $D/dataset_casp_esm2.h5 --kind esm2 --bs 16 2>&1 | grep -v -i -E "$F"
 for c in ${CKPTS:-best_pf_459M_esmc_afdb.pt best_lf_174M_esmc.pt best_pf_174M_p64x6_esmc.pt best_lf_459M_afdb.pt best_lf_174M.pt best_pf_174M_p128x8.pt}; do
-  h5=$D/dataset_casp_esmc.h5; python -c "import json;m=json.load(open('$D/${c%.pt}.meta.json'));import sys;sys.exit(0 if m.get('esm_kind','esm2')=='esmc' or 'esmc' in str(m.get('h5_path','')) else 1)" || h5=$D/dataset_casp_esm2.h5
+  h5=$D/dataset_casp_esmc.h5; python -c "import json;m=json.load(open('$D/$c.meta.json'));import sys;sys.exit(0 if m.get('esm_kind','esm2')=='esmc' or 'esmc' in str(m.get('h5_path','')) else 1)" || h5=$D/dataset_casp_esm2.h5
   echo "== $c on $(basename $h5)"
   for nf in casp_domains_le256; do
     python gate7_score.py --ckpt $c --h5 $h5 --names-file $N/$nf.txt --n 200 --k ${K:-8} --cfg-w ${W:-1.5,2} --steps ${STEPS:-50} 2>&1 | grep -v -i -E "$F"

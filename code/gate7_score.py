@@ -68,6 +68,8 @@ class Holder:
     def __len__(self): return self.z.shape[0]
 val = Holder(); N = len(idx)
 d_emb = int(vf.h5["val"][vf.names[0]]["esm2_emb"].shape[1])
+if not online and int(arch.get("d_cond", 1280)) != d_emb:
+    sys.exit(f"conditioner mismatch: checkpoint expects d_cond {arch.get('d_cond', 1280)}, {h5p or H5_PATH} stores {d_emb}-dim embeddings")
 val.esm = torch.empty(N, G.MAX_LEN, d_emb, dtype=torch.float16); val.z = torch.empty(N, G.MAX_LEN, G.D_LAT)
 val.mask = torch.empty(N, G.MAX_LEN, dtype=torch.bool); val.ca = torch.empty(N, G.MAX_LEN, 3); k = 0
 for esm, z, ca, mask, _ in DataLoader(Subset(vf, idx), batch_size=20, num_workers=2):
