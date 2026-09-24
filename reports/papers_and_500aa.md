@@ -26,7 +26,16 @@ Read 2026-09-24 from `papers/simpleFold.pdf` (Apple, arXiv 2509.18480) and `pape
 
 Latent norm exactly on the manifold (2.828). **The 8-dim latent and the frozen decoder are not the obstacle to 500-residue proteins**; nothing in the autoencoder has to be retrained.
 
-**b. Repeated batching** (`REPEAT_COPIES` in `gate10_pair_flow.py`, profile `slurm/step_profile_repeat.sbatch`): see the addendum at the end once the profile returns. The point: the pair track depends only on the sequence, so R noisy copies of a protein can share one pair computation, and the pair track is half of our step time.
+**b. Repeated batching** (`REPEAT_COPIES` in `gate10_pair_flow.py`, profile `slurm/step_profile_repeat.sbatch`, job 48286248, 459M pair-flow, one RTX). The pair track depends only on the sequence, so R noisy copies of a protein (different t, noise, condition-drop) share one pair computation:
+
+| setting | samples/step | step | s per 1k samples-tokens | peak GB |
+|---|---|---|---|---|
+| R = 1, budget 48 (current recipe) | 15.3k tokens | 1.70 s | 0.111 | 51.9 |
+| R = 2, budget 24 | 15.8k | 1.04 s | 0.066 | 54.6 |
+| R = 4, budget 12 | 14.8k | 0.57 s | 0.039 | 48.5 |
+| R = 2, budget 48 | 32.3k | 2.74 s | 0.085 | 88.2 |
+
+**1.7x (R = 2) to 2.9x (R = 4) more training samples per GPU-second at the same memory.** This is the largest efficiency lever found today and it is exactly SimpleFold's Table 6 (B_c = 8-24 copies). The cost is gradient diversity: R = 4 sees a quarter as many distinct proteins per step. Whether quality per sample holds is being measured now: `pf_174M_p64x6_esmc_r4` (4 RTX, job in status_notes) against the R = 1 twin at equal epochs and equal wall-clock. If it holds, the H200 main line moves to R = 2-4 and the 500-residue fine-tune becomes 2-3x cheaper.
 
 ## 4. Ideas worth taking, ranked by expected value per GPU-hour
 1. **Data: AFESM cluster representatives, 32-512 residues, pLDDT > 80.** Both papers train on exactly this. Replaces the hand-built 2.3M AFDB plan; the build pipeline (`gate8`) already does download + canonicalise + encode at ~30 structures/s per GPU.
