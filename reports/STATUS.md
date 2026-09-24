@@ -1,10 +1,9 @@
 # Live status
 
-Updated 2026-09-24 00:02 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-24 01:07 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
-| lf_174M_esmc | latent flow | 47955320 | ended | 100 | 0.699 (w=2.0) | 83% | 7.38 | 100% |
 
 ## Notes (held-out checks of running models)
 
@@ -35,3 +34,4 @@ Updated 2026-09-24 00:02 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 00:20 — **`pf_459M_esmc_afdb` final (held-out, selection-free): TM 0.758 / 88% / RMSD 6.51 A, best-of-8 0.792** — ahead of ESMFold2-Fast (0.753 / 85% / 7.18) on the same proteins. No-neighbour <0.6: 0.567 / 63% (ESMFold2 0.631 / 73%). Report `pf_459M_esmc_afdb.md`.
 - 2026-09-24 00:50 — `pf_459M_p128x8_esmc_afdb` (8 H200, 128-dim x 8-block pair track, budget 96 x 256^2) running: peak GPU 114 GB, 796 s/epoch (~280 steps), 60 epochs ≈ 13 h. Reference to beat: the 64-dim run's 0.666 at epoch 10 and 0.740 at epoch 60 (selection set).
 - 2026-09-24 02:30 — 64-dim pair ablations stopped at plateau (epoch 60) and reported: with ESMC-6B held-out 0.732 / 88% / 6.38 A (twin 0.732 / 89% / 6.84 at epoch 88); with ESM-2 0.613 vs 0.609. Verdict: the small pair track speeds convergence ~2x but does not raise the plateau. GPUs: 8 H200 (`pf_459M_p128x8_esmc_afdb`) + 1 RTX (`pf_174M_p128x8`, epoch 30, TM 0.619).
+- 2026-09-24 03:20 — `pf_459M_p128x8_esmc_afdb` epoch 10 (2.5 h): TM 0.698 / 85% / 7.51 A vs 0.666 / 82% / 8.16 for the 64-dim run at epoch 10 (+0.03; this run also takes ~33% more steps per epoch at budget 96). Rising ~0.007/epoch.
