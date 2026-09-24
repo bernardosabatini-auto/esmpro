@@ -46,4 +46,4 @@ See also [PLAN.md](PLAN.md) for the next steps and [STATUS.md](STATUS.md) for li
 | [lf_base](lf_base.md) | latent flow 59M, first prototype | stopped at epoch 12; held-out TM 0.530 / 57% at w=2 (FAPE control 0.466 / 42%) |
 | [casp_benchmark](casp_benchmark.md) | 80 CASP15/16 experimental domains <=256 aa, all checkpoints vs ESMFold2-Fast | ours 0.698 / 72%, ESMFold2-Fast 0.741 / 79%; ordering of runs preserved; best-of-8 ties ESMFold2 |
 | [sample_selector](sample_selector.md) | training-free best-of-8 selection (consensus, re-encoding, decoder spread) | consensus recovers 15-27% of the oracle gap (+0.01 TM); the other signals nothing |
-| [pdb_build](pdb_build.md) | 17,921 experimental PDB chains (<=3 A, 50% id clusters, CASP and val guards) as training targets | built in 20 GPU-min; ProteinAE round trip on experimental structures 0.996-0.999 TM |
+| [pdb_build](pdb_build.md) | 17,896 experimental PDB chains (<=3 A, 50% id clusters, CASP and val guards) as training targets | built in 20 GPU-min; ProteinAE round trip on experimental structures 0.996-0.999 TM |
