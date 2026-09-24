@@ -678,7 +678,7 @@ def main(a):
                     "sched": sched.state_dict(), "epoch": epoch + 1, "step": step,
                     "best_tm": best_tm, "best_ep": best_ep, "history": history, "arch": arch,
                     "model": type(raw).__name__, "extra_arch": getattr(raw, "extra_arch", {}),
-                    "esm_kind": a.esm_kind, "esm_path": a.esm_path,
+                    "esm_kind": a.esm_kind, "esm_path": a.esm_path, "h5_path": a.h5_path,
                     "mix_logits": (embed.mix_logits.detach().cpu() if (embed is not None and embed.layer_mix) else None),
                     "gen": gen.get_state(), "torch_rng": torch.get_rng_state()}, str(last) + ".tmp")
         os.replace(str(last) + ".tmp", str(last))
