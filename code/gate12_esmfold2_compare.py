@@ -23,7 +23,8 @@ from transformers.models.esmfold2.modeling_esmfold2 import EsmFold2Model
 from transformers.models.esmfold2.protein_utils import prepare_protein_features, output_to_pdb
 dev = torch.device("cuda")
 t0 = time.perf_counter()
-model = EsmFold2Model.from_pretrained(a.model, dtype=torch.bfloat16).eval().to(dev)
+# fp32, no autocast: the diffusion sampler's rigid alignment uses a CUDA SVD with no bf16 kernel
+model = EsmFold2Model.from_pretrained(a.model, dtype=torch.float32).eval().to(dev)
 print(f"loaded ESMFold2-Fast in {time.perf_counter()-t0:.0f}s, {sum(p.numel() for p in model.parameters())/1e9:.2f}B params, "
       f"{torch.cuda.memory_allocated()/1e9:.1f} GB", flush=True)
 
@@ -42,7 +43,7 @@ per = {}
 for k, nm in enumerate(todo):
     g = h["val"][nm]; seq = str(g.attrs["sequence"]); ca_true = torch.from_numpy(g["ca_coords"][:])
     t1 = time.perf_counter()
-    with torch.no_grad(), torch.amp.autocast("cuda", dtype=torch.bfloat16):
+    with torch.no_grad():
         feats = prepare_protein_features(seq, device=dev)
         out = model.fold(**feats, num_loops=a.loops, num_sampling_steps=a.steps, num_diffusion_samples=1)
     pdb = output_to_pdb(out, feats)
