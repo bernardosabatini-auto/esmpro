@@ -64,6 +64,9 @@ class RecFlowNet(G10.PairFlowNet):
 
 def fm_loss_rec(net, z1, esm, mask, p_drop=0.1, p_sc=0.5, contact=None):
     raw = getattr(net, "module", net)
+    R = G10.REPEAT_COPIES
+    if R > 1:   # repeated batching: R noisy copies per protein; the geometry-free pair is shared, the recycled one is per copy
+        z1, esm, mask = G10._repeat(z1, R), G10._repeat(esm, R), G10._repeat(mask, R)
     B = z1.shape[0]; dev = z1.device
     x0 = torch.randn_like(z1)
     t = torch.sigmoid(torch.randn(B, device=dev)); tt = t[:, None, None]

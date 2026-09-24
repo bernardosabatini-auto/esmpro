@@ -268,15 +268,26 @@ class PairFlowNet(nn.Module):
 # ---------------------------------------------------------------------------
 # Flow-matching loss and sampler that compute the pair track once
 # ---------------------------------------------------------------------------
+REPEAT_COPIES = int(os.environ.get("REPEAT_COPIES", "1"))   # copies of each protein per step sharing one pair computation
+
+def _repeat(x, r):
+    return x if r == 1 or x is None else x.repeat_interleave(r, dim=0)
+
+
 def fm_loss_pair(net, z1, esm, mask, p_drop=0.1, p_sc=0.5, contact=None):
     raw = getattr(net, "module", net)
+    R = REPEAT_COPIES
+    if R > 1:   # pair once per protein, then R noisy copies (different t, x0, cond-drop) through the trunk
+        pair1 = raw.compute_pair(esm, mask, contact)
+        pair = pair1.repeat_interleave(R, dim=0)
+        z1, esm, mask = _repeat(z1, R), _repeat(esm, R), _repeat(mask, R)
     B = z1.shape[0]; dev = z1.device
     x0 = torch.randn_like(z1)
     t = torch.sigmoid(torch.randn(B, device=dev)); tt = t[:, None, None]
     x_t = (1 - tt) * x0 + tt * z1
     v_target = z1 - x0
     drop = torch.rand(B, device=dev) < p_drop
-    pair = raw.compute_pair(esm, mask, contact)          # once, with grad
+    if R == 1: pair = raw.compute_pair(esm, mask, contact)          # once, with grad
     x_sc = None
     if raw.self_cond and torch.rand(()) < p_sc:
         with torch.no_grad():

@@ -33,11 +33,13 @@ for bi in plan[: a.n_steps + 2]:
         shapes.append((int(z.shape[0]), int(z.shape[1])))
     n += 1
 m = n - 2; step = sum(tot.values()) / m
-print(f"per step ({m} steps, shapes B,L = {shapes[:4]}...): " + "  ".join(f"{k} {v/m:.3f}s" for k, v in tot.items()) + f"  | total {step:.3f}s", flush=True)
+R = int(os.environ.get("REPEAT_COPIES", "1"))
+print(f"REPEAT_COPIES={R}: samples/step = {R} x proteins; per step ({m} steps, shapes B,L = {shapes[:4]}...): " + "  ".join(f"{k} {v/m:.3f}s" for k, v in tot.items()) + f"  | total {step:.3f}s", flush=True)
 tok = sum(B * L for B, L in shapes) / m
 P = sum(p.numel() for p in net.parameters())
 flops = 6 * P * tok * 1.5   # fwd+bwd of the DiT plus the no-grad self-cond forward (pair track and attention extra)
-print(f"tokens/step {tok:.0f}; DiT-only FLOP estimate {flops/1e12:.0f} TFLOP/step -> {flops/step/1e12:.0f} TFLOPS achieved (RTX Pro 6000 bf16 dense peak ~ 500-ish; H200 ~990)")
+tok = tok * R
+print(f"tokens/step {tok:.0f} (x{R} copies); DiT-only FLOP estimate {flops/1e12:.0f} TFLOP/step -> {flops/step/1e12:.0f} TFLOPS achieved (RTX Pro 6000 bf16 dense peak ~ 500-ish; H200 ~990)")
 print(f"peak GPU {torch.cuda.max_memory_allocated()/1e9:.1f} GB  (PAD8={G.PAD8} DIT_COMPILE={G.DIT_COMPILE} fused={a.fused} PAIR_CKPT={os.environ.get('PAIR_CKPT','1')})", flush=True)
 from torch.nn.attention import sdpa_kernel, SDPBackend
 Lq = int(shapes[0][1]); q = torch.randn(8, 16, Lq, 64, device=dev, dtype=torch.bfloat16); bias = torch.randn(8, 16, Lq, Lq, device=dev, dtype=torch.bfloat16)
