@@ -22,6 +22,8 @@ See also [PLAN.md](PLAN.md) for the next steps and [STATUS.md](STATUS.md) for li
 | report | run | outcome |
 |---|---|---|
 | [h200_full_bs160](h200_full_bs160.md) | FAPE head, batch 160 | stopped at epoch 8, TM 0.462; tracked the batch-96 control |
+| [pf_174M_p64x6_esmc](pf_174M_p64x6_esmc.md) | pair 64x6 + ESMC-6B, 80k | held-out 0.732 / 88% / 6.38 A: same TM as no-pair twin, better RMSD, 60 vs 88 epochs |
+| [pf_174M_p64x6](pf_174M_p64x6.md) | pair 64x6 + ESM-2, 80k | held-out 0.613 / 71%: indistinguishable from no-pair twin at the plateau; 2x faster convergence |
 | [pf_459M_esmc_afdb](pf_459M_esmc_afdb.md) | **pair track + ESMC-6B + 473k, 8 H200** | **held-out 0.758 / 88% / 6.51 A** (best-of-8 0.79), beats ESMFold2-Fast there; no-neighbour 0.567 / 63% (ESMFold2 0.631) |
 | [esmfold2_comparison](esmfold2_comparison.md) | **external bar**: ESMFold2-Fast on our sets | held-out 0.753 / 85% / 7.18 A (ours 0.732 / 89% / 6.84); no-neighbour 0.631 vs ours 0.535 |
 | [lf_174M_esmc](lf_174M_esmc.md) | **latent flow 174M, ESMC-6B conditioner, 80k** | **held-out 0.732 / 89% / 6.84 A**, best-of-8 0.763; no-neighbour 0.535 / 62%; conditioner is the biggest lever |
