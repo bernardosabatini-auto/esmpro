@@ -39,7 +39,7 @@ if mtype in ("PairFlowNet", "RecFlowNet", "_Net"):
     import gate10_pair_flow as G10
     G10.install()
     ex = (meta.get("extra_arch") or st.get("extra_arch")) if a.ckpt.endswith(".ckpt") else \
-         {k: meta[k] for k in ("d_pair", "n_pair_blocks", "pair_contact", "recycle", "p_rec", "rec_every") if k in meta}
+         {k: meta[k] for k in ("d_pair", "n_pair_blocks", "pair_contact", "pair_fused", "recycle", "p_rec", "rec_every") if k in meta}
     ex = dict(ex)
     if ex.pop("recycle", False):
         import gate16_recycle_flow as G16
@@ -49,7 +49,7 @@ if mtype in ("PairFlowNet", "RecFlowNet", "_Net"):
         net = G10.PairFlowNet(**arch, **ex).to(dev); print("pair-track model", ex)
 else:
     net = G.LatentFlowNet(**arch).to(dev)
-net.load_state_dict(weights); net.eval()
+net.load_state_dict(G.adapt_state_dict(weights, net.state_dict().keys())); net.eval()
 online = meta.get("esm", "stored") == "online"
 embed = None
 if online:

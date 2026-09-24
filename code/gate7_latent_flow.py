@@ -30,6 +30,8 @@ from gate6_fape_train import (ProteinDatasetFAPE, H5_PATH, PROJECT, fape_loss,
 from gate6_corrected_eval import kabsch_rmsd
 
 D_LAT, D_ESM, MAX_LEN = 8, 1280, 256
+PAD8 = os.environ.get("PAD8", "1") == "1"                 # pad bucket length to a multiple of 8
+DIT_COMPILE = os.environ.get("DIT_COMPILE", "1") == "1"   # torch.compile the transformer blocks
 CKPT_DIR = PROJECT / "data" / "phase1_dataset"
 
 
@@ -139,6 +141,7 @@ class RamSplit:
     def batch_from(self, i, bucket=True):
         m = self.mask[i]
         Lmax = max(int(m.sum(1).max()), 8) if bucket else MAX_LEN
+        if PAD8: Lmax = min(MAX_LEN, (Lmax + 7) // 8 * 8)    # 16-byte-aligned attention bias -> fused SDPA kernel instead of the math path
         c = self.cond(i)
         if not self.online: c = c[:, :Lmax]
         return c, self.z[i][:, :Lmax], m[:, :Lmax], (self.ca[i][:, :Lmax] if self.ca is not None else None), i
@@ -280,6 +283,8 @@ class LatentFlowNet(nn.Module):
         self.pos = nn.Embedding(MAX_LEN, d_model)
         self.t_mlp = nn.Sequential(nn.Linear(d_model, d_model), nn.SiLU(), nn.Linear(d_model, d_model))
         self.blocks = nn.ModuleList([DiTBlock(d_model, n_heads, rel_pos, dropout) for _ in range(n_layers)])
+        if DIT_COMPILE and torch.cuda.is_available():   # fuse adaLN/gating/residual chains; dynamic shapes for bucketed batches
+            self.blocks = nn.ModuleList([torch.compile(b, dynamic=True) for b in self.blocks])
         self.out_norm = nn.LayerNorm(d_model, elementwise_affine=False)
         self.out_ada = nn.Sequential(nn.SiLU(), nn.Linear(d_model, 2 * d_model))
         self.out_proj = nn.Linear(d_model, D_LAT)
@@ -365,6 +370,18 @@ def sample(net, esm, mask, n_steps=50, cfg_w=1.0, gen=None, project=True):
 # ---------------------------------------------------------------------------
 # Structure evaluation through the frozen decoder
 # ---------------------------------------------------------------------------
+
+def adapt_state_dict(sd, target_keys):
+    """compiled-key matching plus the fused/unfused triangle-update conversion (gate10)."""
+    sd = match_compiled_keys(sd, target_keys)
+    if set(sd) != set(target_keys):
+        try:
+            import gate10_pair_flow as _G10
+            sd = _G10.fuse_triangle_state_dict(sd, target_keys)
+        except ImportError:
+            pass
+    return sd
+
 
 def match_compiled_keys(sd, target_keys):
     """torch.compile wraps sub-modules and prefixes their parameters with '_orig_mod.'; a
@@ -556,7 +573,7 @@ def main(a):
     groups = [{"params": list(net.parameters())}]
     if embed is not None and embed.layer_mix and a.esm_kind == "esm2":   # 34 scalars: no decay, 20x lr so the mix can move
         groups.append({"params": [embed.mix_logits], "lr": a.lr * 20, "weight_decay": 0.0})
-    opt = torch.optim.AdamW(groups, lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95))
+    opt = torch.optim.AdamW(groups, lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95), fused=(device.type == "cuda"))
     steps_per_epoch = math.ceil(len(train) / a.batch_size); total = steps_per_epoch * a.epochs
     def lr_at(step):
         if step < a.warmup: return step / max(a.warmup, 1)
@@ -571,7 +588,8 @@ def main(a):
     if a.resume:
         st = torch.load(str(CKPT_DIR / a.resume), weights_only=False, map_location=device)
         if st["arch"] != arch: raise ValueError(f"arch mismatch: {st['arch']} vs {arch}")
-        raw.load_state_dict(st["net"]); ema.load_state_dict(st["ema"]); opt.load_state_dict(st["opt"])
+        raw.load_state_dict(adapt_state_dict(st["net"], raw.state_dict().keys()))
+        ema.load_state_dict(adapt_state_dict(st["ema"], ema.state_dict().keys())); opt.load_state_dict(st["opt"])
         if st.get("mix_logits") is not None and embed is not None:
             embed.mix_logits.data.copy_(st["mix_logits"].to(device))
         sched.load_state_dict(st["sched"]); start, step = st["epoch"], st["step"]
@@ -586,7 +604,7 @@ def main(a):
         if warch != arch or wex != rex:
             raise ValueError(f"warm-start arch mismatch: {warch} / {wex} vs {arch} / {rex}")
         w = torch.load(str(CKPT_DIR / a.warm_start), weights_only=True, map_location=device)
-        w = match_compiled_keys(w, raw.state_dict().keys())
+        w = adapt_state_dict(w, raw.state_dict().keys())
         raw.load_state_dict(w); ema.load_state_dict(w)
         say(f"  WARM START from {a.warm_start} (epoch {wmeta.get('epoch')}, TM {wmeta.get('tm')}); fresh optimizer and schedule")
 

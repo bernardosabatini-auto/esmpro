@@ -25,7 +25,7 @@ from gate7_latent_flow import D_LAT
 
 N_BINS = 16
 EDGES = torch.linspace(2.0, 20.0, N_BINS - 1)          # 15 edges -> 16 bins, last = > 20 A
-REC = {"dec": None, "p_rec": 0.5, "rec_every": 5, "chunk": int(os.environ.get("REC_CHUNK", "32"))}
+REC = {"dec": None, "p_rec": 0.5, "rec_every": 5, "chunk": int(os.environ.get("REC_CHUNK", "96"))}
 
 def _decoder(device):
     if REC["dec"] is None:
@@ -126,14 +126,15 @@ if __name__ == "__main__":
     p.add_argument("--d-pair", type=int, default=64); p.add_argument("--n-pair-blocks", type=int, default=6)
     p.add_argument("--p-rec", type=float, default=0.5, help="probability that a training step feeds the decoded estimate back")
     p.add_argument("--rec-every", type=int, default=5, help="sampling: recompute the pair with the decoded estimate every k Euler steps (0 = never)")
+    p.add_argument("--pair-unfused", action="store_true")
     pa, rest = p.parse_known_args()
     sys.argv = [sys.argv[0]] + rest
     REC["p_rec"], REC["rec_every"] = pa.p_rec, pa.rec_every
     a = G7.parse_args()
     class _Net(RecFlowNet):
         def __init__(self, **kw):
-            super().__init__(**kw, d_pair=pa.d_pair, n_pair_blocks=pa.n_pair_blocks)
-            self.extra_arch = {"d_pair": pa.d_pair, "n_pair_blocks": pa.n_pair_blocks, "pair_contact": False,
+            super().__init__(**kw, d_pair=pa.d_pair, n_pair_blocks=pa.n_pair_blocks, pair_fused=not pa.pair_unfused)
+            self.extra_arch = {"d_pair": pa.d_pair, "n_pair_blocks": pa.n_pair_blocks, "pair_contact": False, "pair_fused": not pa.pair_unfused,
                                "recycle": True, "p_rec": pa.p_rec, "rec_every": pa.rec_every}
     G7.LatentFlowNet = _Net
     print(f"[gate16] recycling pair flow: d_pair {pa.d_pair}, blocks {pa.n_pair_blocks}, p_rec {pa.p_rec}, rec_every {pa.rec_every}", flush=True)

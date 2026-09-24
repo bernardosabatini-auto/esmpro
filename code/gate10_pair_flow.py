@@ -89,10 +89,67 @@ class TriangleMultiply(nn.Module):
         return torch.sigmoid(self.gate(z)) * self.out(self.norm_out(x))
 
 
+class TriangleMultiplyFused(TriangleMultiply):
+    """Same computation as TriangleMultiply with the five per-pair projections (a, b, their
+    gates, the output gate) fused into one GEMM on the (B*L*L, d) pair matrix: 5 launches ->
+    1, better tensor-core utilisation, same parameter count."""
+    def __init__(self, d, mode):
+        nn.Module.__init__(self)
+        self.mode = mode
+        self.norm_in = nn.LayerNorm(d)
+        self.proj = nn.Linear(d, 5 * d)
+        self.norm_out = nn.LayerNorm(d)
+        self.out = nn.Linear(d, d)
+        nn.init.zeros_(self.out.weight); nn.init.zeros_(self.out.bias)
+
+    def forward(self, p, pmask):
+        z = self.norm_in(p)
+        a_, b_, ga, gb, g = self.proj(z).chunk(5, dim=-1)
+        a = torch.sigmoid(ga) * a_ * pmask
+        b = torch.sigmoid(gb) * b_ * pmask
+        if self.mode == "out":
+            x = torch.einsum("bikd,bjkd->bijd", a, b)
+        else:
+            x = torch.einsum("bkid,bkjd->bijd", a, b)
+        return torch.sigmoid(g) * self.out(self.norm_out(x))
+
+
+
+def fuse_triangle_state_dict(sd, target_keys):
+    """Convert a checkpoint saved with the five-GEMM TriangleMultiply (a, b, ga, gb, gate) into the
+    fused layout (proj = cat[a, b, ga, gb, gate]) when the target model is fused, and back when the
+    target is unfused. Keys may carry torch.compile's '_orig_mod.' prefix on either side."""
+    target = set(target_keys)
+    if set(sd) == target: return sd
+    def strip(k): return k.replace("._orig_mod.", ".").replace("_orig_mod.", "")
+    src = {strip(k): v for k, v in sd.items()}; tmap = {strip(k): k for k in target}
+    out = {}
+    done = set()
+    for k in list(src):
+        if k in done: continue
+        if k.endswith(".a.weight"):
+            base = k[:-len("a.weight")]
+            if base + "proj.weight" in tmap:
+                for suf in ("weight", "bias"):
+                    out[tmap[base + "proj." + suf]] = torch.cat([src[base + f"{n}.{suf}"] for n in ("a", "b", "ga", "gb", "gate")], 0)
+                    done.update(base + f"{n}.{suf}" for n in ("a", "b", "ga", "gb", "gate"))
+                continue
+        if k.endswith(".proj.weight"):
+            base = k[:-len("proj.weight")]
+            if base + "a.weight" in tmap:
+                for suf in ("weight", "bias"):
+                    parts = src[base + "proj." + suf].chunk(5, 0)
+                    for n, part in zip(("a", "b", "ga", "gb", "gate"), parts): out[tmap[base + f"{n}.{suf}"]] = part
+                    done.add(base + "proj." + suf)
+                continue
+        if k not in done and k in tmap: out[tmap[k]] = src[k]; done.add(k)
+    return out
+
 class PairBlock(nn.Module):
-    def __init__(self, d, dropout=0.0):
+    def __init__(self, d, dropout=0.0, fused=False):
         super().__init__()
-        self.tri_out = TriangleMultiply(d, "out"); self.tri_in = TriangleMultiply(d, "in")
+        TM = TriangleMultiplyFused if fused else TriangleMultiply
+        self.tri_out = TM(d, "out"); self.tri_in = TM(d, "in")
         self.norm = nn.LayerNorm(d)
         self.trans = nn.Sequential(nn.Linear(d, 4 * d), nn.GELU(approximate="tanh"), nn.Dropout(dropout), nn.Linear(4 * d, d))
         nn.init.zeros_(self.trans[-1].weight); nn.init.zeros_(self.trans[-1].bias)
@@ -106,7 +163,7 @@ class PairBlock(nn.Module):
 
 class PairTrack(nn.Module):
     """Build and refine the pair representation from the conditioning."""
-    def __init__(self, d_in, d_pair=64, n_blocks=6, rel_pos=32, use_contact=False, n_dist_bins=0, dropout=0.0):
+    def __init__(self, d_in, d_pair=64, n_blocks=6, rel_pos=32, use_contact=False, n_dist_bins=0, dropout=0.0, fused=False):
         super().__init__()
         self.rel = rel_pos
         self.norm_s = nn.LayerNorm(d_in)
@@ -116,7 +173,7 @@ class PairTrack(nn.Module):
         self.contact = nn.Linear(1, d_pair) if use_contact else None
         self.n_dist_bins = n_dist_bins
         self.dist = nn.Linear(n_dist_bins, d_pair) if n_dist_bins else None   # recycling hook
-        self.blocks = nn.ModuleList([PairBlock(d_pair, dropout) for _ in range(n_blocks)])
+        self.blocks = nn.ModuleList([PairBlock(d_pair, dropout, fused) for _ in range(n_blocks)])
         if os.environ.get("PAIR_COMPILE", "1") == "1" and torch.cuda.is_available():
             # fuse the memory-bound elementwise chains (gates, norms, masks); the
             # triangle contraction itself is cheap
@@ -155,7 +212,7 @@ class PairFlowNet(nn.Module):
     `contact` and `dist_feats`, and a `pair` kwarg to reuse a precomputed pair
     tensor (self-conditioning pass, sampling steps)."""
     def __init__(self, d_model=768, n_layers=16, n_heads=12, dropout=0.0, rel_pos=32, self_cond=True,
-                 d_cond=D_ESM, d_pair=64, n_pair_blocks=6, pair_contact=False, pair_dist_bins=0):
+                 d_cond=D_ESM, d_pair=64, n_pair_blocks=6, pair_contact=False, pair_dist_bins=0, pair_fused=False):
         super().__init__()
         self.self_cond = self_cond
         self.in_proj = nn.Linear(D_LAT * (2 if self_cond else 1), d_model)
@@ -163,12 +220,14 @@ class PairFlowNet(nn.Module):
         self.null_cond = nn.Parameter(torch.zeros(1, 1, d_model))
         self.pos = nn.Embedding(MAX_LEN, d_model)
         self.t_mlp = nn.Sequential(nn.Linear(d_model, d_model), nn.SiLU(), nn.Linear(d_model, d_model))
-        self.pair = PairTrack(d_cond, d_pair, n_pair_blocks, rel_pos, pair_contact, pair_dist_bins, dropout)
+        self.pair = PairTrack(d_cond, d_pair, n_pair_blocks, rel_pos, pair_contact, pair_dist_bins, dropout, fused=pair_fused)
         self.null_pair = nn.Parameter(torch.zeros(1, 1, 1, d_pair))
         self.pair_bias_norm = nn.LayerNorm(d_pair)
         self.pair_bias = nn.Linear(d_pair, n_layers * n_heads, bias=False); nn.init.zeros_(self.pair_bias.weight)
         self.n_heads = n_heads
         self.blocks = nn.ModuleList([PairDiTBlock(d_model, n_heads, rel_pos, dropout, d_pair) for _ in range(n_layers)])
+        if G7.DIT_COMPILE and torch.cuda.is_available():
+            self.blocks = nn.ModuleList([torch.compile(b, dynamic=True) for b in self.blocks])
         self.out_norm = nn.LayerNorm(d_model, elementwise_affine=False)
         self.out_ada = nn.Sequential(nn.SiLU(), nn.Linear(d_model, 2 * d_model))
         self.out_proj = nn.Linear(d_model, D_LAT)
@@ -199,9 +258,9 @@ class PairFlowNet(nn.Module):
         c_pool = (c_tok * m).sum(1) / m.sum(1).clamp(min=1.0)
         c = self.t_mlp(timestep_embedding(t, self.d_model)) + c_pool
         pb_all = self.pair_bias(self.pair_bias_norm(pair)).permute(0, 3, 1, 2)   # (B, n_layers*H, L, L), once
-        H = self.n_heads
-        for i, blk in enumerate(self.blocks):
-            h = blk(h, c, mask, pb_all[:, i * H:(i + 1) * H])
+        pbs = pb_all.to(h.dtype).contiguous().split(self.n_heads, dim=1)   # one split (single cat in backward) instead of 24 sliced copies
+        for blk, pb in zip(self.blocks, pbs):
+            h = blk(h, c, mask, pb)
         s, b = self.out_ada(c).unsqueeze(1).chunk(2, dim=-1)
         return self.out_proj(self.out_norm(h) * (1 + s) + b)
 
@@ -263,14 +322,15 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(add_help=False)
     p.add_argument("--d-pair", type=int, default=64); p.add_argument("--n-pair-blocks", type=int, default=6)
     p.add_argument("--pair-contact", action="store_true", help="add the ESM-2 pretrained contact map as a pair input (online mode)")
+    p.add_argument("--pair-unfused", action="store_true", help="use the original five-GEMM triangle update (old checkpoints); default is the fused one")
     pa, rest = p.parse_known_args()
     sys.argv = [sys.argv[0]] + rest
     a = G7.parse_args()
     # inject the pair hyper-parameters into gate7's arch dict via a wrapper class
     class _Net(PairFlowNet):
         def __init__(self, **kw):
-            super().__init__(**kw, d_pair=pa.d_pair, n_pair_blocks=pa.n_pair_blocks, pair_contact=pa.pair_contact)
-            self.extra_arch = {"d_pair": pa.d_pair, "n_pair_blocks": pa.n_pair_blocks, "pair_contact": pa.pair_contact}
+            super().__init__(**kw, d_pair=pa.d_pair, n_pair_blocks=pa.n_pair_blocks, pair_contact=pa.pair_contact, pair_fused=not pa.pair_unfused)
+            self.extra_arch = {"d_pair": pa.d_pair, "n_pair_blocks": pa.n_pair_blocks, "pair_contact": pa.pair_contact, "pair_fused": not pa.pair_unfused}
     _Net.__name__ = "PairFlowNet"
     G7.LatentFlowNet = _Net
     if pa.pair_contact:
