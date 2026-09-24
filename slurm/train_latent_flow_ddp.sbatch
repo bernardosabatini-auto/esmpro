@@ -19,7 +19,7 @@ LAST=$ESM_PROAE_ROOT/data/phase1_dataset/last_${LABEL}.ckpt
 resubmit() { echo "[$(date)] resubmitting for resume"; cd $ESM_PROAE_ROOT && LABEL=$LABEL EXTRA="$EXTRA" NGPU=$NGPU sbatch -p $SLURM_JOB_PARTITION --gres=gpu:$NGPU --export=ALL slurm/train_latent_flow_ddp.sbatch; }
 trap resubmit USR1
 RES=""; [ -f "$LAST" ] && RES="--resume last_${LABEL}.ckpt"
-torchrun --standalone --nproc-per-node=$NGPU gate7_latent_flow.py --label $LABEL ${EXTRA:-} $RES &
+torchrun --standalone --nproc-per-node=$NGPU ${SCRIPT:-gate7_latent_flow.py} --label $LABEL ${EXTRA:-} $RES &
 PID=$!
 while kill -0 $PID 2>/dev/null; do wait $PID; RC=$?; done
 echo "[$(date)] torchrun exited with $RC"
