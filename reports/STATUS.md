@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-24 03:29 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-24 04:58 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -36,3 +36,4 @@ Updated 2026-09-24 03:29 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 02:30 — 64-dim pair ablations stopped at plateau (epoch 60) and reported: with ESMC-6B held-out 0.732 / 88% / 6.38 A (twin 0.732 / 89% / 6.84 at epoch 88); with ESM-2 0.613 vs 0.609. Verdict: the small pair track speeds convergence ~2x but does not raise the plateau. GPUs: 8 H200 (`pf_459M_p128x8_esmc_afdb`) + 1 RTX (`pf_174M_p128x8`, epoch 30, TM 0.619).
 - 2026-09-24 03:20 — `pf_459M_p128x8_esmc_afdb` epoch 10 (2.5 h): TM 0.698 / 85% / 7.51 A vs 0.666 / 82% / 8.16 for the 64-dim run at epoch 10 (+0.03; this run also takes ~33% more steps per epoch at budget 96). Rising ~0.007/epoch.
 - 2026-09-24 04:10 — `pf_174M_p128x8` stopped at plateau (epoch 40) and reported: held-out 0.621 / 71%, +0.01 over the 64-dim pair track. **GPUs in use: the 8 H200s of `pf_459M_p128x8_esmc_afdb` only.**
+- 2026-09-24 06:40 — CASP15/16 experimental benchmark (80 domains) built and scored: best model 0.698 / 72% / 8.32 A vs ESMFold2-Fast 0.741 / 79% / 7.15 A; run ordering preserved; 66/80 domains have a training fold (TM>0.5). Report `casp_benchmark.md`. GPUs: only the 8 H200s (epoch 27, 0.729).

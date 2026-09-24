@@ -44,3 +44,4 @@ See also [PLAN.md](PLAN.md) for the next steps and [STATUS.md](STATUS.md) for li
 | [h200_bb_bond](h200_bb_bond.md) | FAPE head, true frames + bond penalty | stopped at epoch 11; held-out 0.469 / 43%, same as control; geometry fixed (N-CA dev 0.39 -> 0.10 A) |
 | [h200_bb](h200_bb.md) | FAPE head, true frames alone | stopped at epoch 11; held-out 0.468 / 44%, same as control; true frames neither help nor hurt |
 | [lf_base](lf_base.md) | latent flow 59M, first prototype | stopped at epoch 12; held-out TM 0.530 / 57% at w=2 (FAPE control 0.466 / 42%) |
+| [casp_benchmark](casp_benchmark.md) | 80 CASP15/16 experimental domains <=256 aa, all checkpoints vs ESMFold2-Fast | ours 0.698 / 72%, ESMFold2-Fast 0.741 / 79%; ordering of runs preserved; best-of-8 ties ESMFold2 |
