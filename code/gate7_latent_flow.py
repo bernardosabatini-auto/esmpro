@@ -568,8 +568,9 @@ def main(a):
     elif a.warm_start:
         wmeta = json.load(open(str(CKPT_DIR / a.warm_start) + ".meta.json"))
         warch = {k: wmeta[k] for k in arch if k in wmeta}
-        if warch != arch or wmeta.get("extra_arch", {}) != getattr(raw, "extra_arch", {}):
-            raise ValueError(f"warm-start arch mismatch: {warch} / {wmeta.get('extra_arch')} vs {arch} / {getattr(raw, 'extra_arch', {})}")
+        rex = getattr(raw, "extra_arch", {}); wex = wmeta.get("extra_arch") or {k: wmeta.get(k) for k in rex}   # pair keys are stored top-level
+        if warch != arch or wex != rex:
+            raise ValueError(f"warm-start arch mismatch: {warch} / {wex} vs {arch} / {rex}")
         w = torch.load(str(CKPT_DIR / a.warm_start), weights_only=True, map_location=device)
         raw.load_state_dict(w); ema.load_state_dict(w)
         say(f"  WARM START from {a.warm_start} (epoch {wmeta.get('epoch')}, TM {wmeta.get('tm')}); fresh optimizer and schedule")
