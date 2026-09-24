@@ -47,7 +47,7 @@ class RamSplit:
     trainer run frozen ESM-2 per batch, which also enables all-layer mixing
     and datasets far larger than RAM."""
     def __init__(self, split, n=0, workers=8, keep_ca=False, seed=42, shard=(0, 1), online=False, h5_path=None):
-        ds = ProteinDatasetFAPE(h5_path or H5_PATH, split)
+        ds = ProteinDatasetFAPE(h5_path or H5_PATH, split, max_len=MAX_LEN)
         torch.manual_seed(seed)
         idx = torch.randperm(len(ds))[:n].tolist() if n else list(range(len(ds)))
         rank, world = shard

@@ -68,7 +68,7 @@ print(f"checkpoint {a.ckpt}: epoch {meta['epoch']}, train-time TM {meta['tm']:.3
 h5p = a.h5 or meta.get("h5_path") or (st.get("h5_path") if a.ckpt.endswith(".ckpt") else None) or os.environ.get("SCORE_H5", "")
 if not h5p and int(arch.get("d_cond", 1280)) == 2560:      # ESMC-conditioned checkpoint without a recorded data file
     h5p = str(PROJECT / "data/phase1_dataset/dataset_100k_esmc.h5"); print(f"d_cond 2560 and no data file recorded: using {os.path.basename(h5p)}")
-vf = ProteinDatasetFAPE(h5p or H5_PATH, "val")
+vf = ProteinDatasetFAPE(h5p or H5_PATH, "val", max_len=G.MAX_LEN)
 if h5p: print(f"embeddings/latents from {h5p}")
 torch.manual_seed(42); idx = torch.randperm(len(vf))[a.offset:a.offset + a.n].tolist()
 if a.names_file:

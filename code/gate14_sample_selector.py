@@ -51,7 +51,7 @@ else:
 net.load_state_dict(weights); net.eval()
 assert meta.get("esm", "stored") == "stored", "online-ESM checkpoints not supported here; use a stored-embedding one"
 h5p = a.h5 or meta.get("h5_path") or H5_PATH
-vf = ProteinDatasetFAPE(h5p, "val")
+vf = ProteinDatasetFAPE(h5p, "val", max_len=G.MAX_LEN)
 torch.manual_seed(42); idx = torch.randperm(len(vf))[a.offset:a.offset + a.n].tolist()
 if a.names_file:
     want = [l.strip() for l in open(a.names_file) if l.strip()]; pos = {n: i for i, n in enumerate(vf.names)}
