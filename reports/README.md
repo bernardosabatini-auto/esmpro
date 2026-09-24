@@ -22,6 +22,7 @@ See also [PLAN.md](PLAN.md) for the next steps and [STATUS.md](STATUS.md) for li
 | report | run | outcome |
 |---|---|---|
 | [h200_full_bs160](h200_full_bs160.md) | FAPE head, batch 160 | stopped at epoch 8, TM 0.462; tracked the batch-96 control |
+| [pf_459M_esmc_afdb](pf_459M_esmc_afdb.md) | **pair track + ESMC-6B + 473k, 8 H200** | **held-out 0.758 / 88% / 6.51 A** (best-of-8 0.79), beats ESMFold2-Fast there; no-neighbour 0.567 / 63% (ESMFold2 0.631) |
 | [esmfold2_comparison](esmfold2_comparison.md) | **external bar**: ESMFold2-Fast on our sets | held-out 0.753 / 85% / 7.18 A (ours 0.732 / 89% / 6.84); no-neighbour 0.631 vs ours 0.535 |
 | [lf_174M_esmc](lf_174M_esmc.md) | **latent flow 174M, ESMC-6B conditioner, 80k** | **held-out 0.732 / 89% / 6.84 A**, best-of-8 0.763; no-neighbour 0.535 / 62%; conditioner is the biggest lever |
 | [leakage_audit](leakage_audit.md) | **audit** | most of the score is seen folds: on no-neighbour proteins 80k 0.44 vs 473k 0.47 TM; data gain real but small |

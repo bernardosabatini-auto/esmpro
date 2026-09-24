@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-23 22:35 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-23 22:57 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -32,3 +32,4 @@ Updated 2026-09-23 22:35 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 02:40 — `pf_459M_esmc_afdb` epoch 50 (6.5 h): **TM 0.736 / 89% / RMSD 7.04 A** (selection set), validation flow loss still falling (0.0489; no overfitting at 473k, unlike the 80k ESMC run). 10 epochs of cosine anneal remain.
 - 2026-09-23 23:30 — **ESMFold2-Fast on our sets** (`esmfold2_comparison.md`): held-out 0.753 / 85% / 7.18 A; no-neighbour <0.6 0.631 / 73%; <0.5 0.563 / 60%. Our 80k ESMC model is at parity on the held-out slice (0.732 / 89% / 6.84) and 0.07-0.10 TM behind on no-neighbour folds.
 - 2026-09-23 23:50 — `pf_459M_esmc_afdb` finished: best selection-set TM 0.740 / 89% / 6.82 A at epoch 60 (schedule end, still rising). Held-out and no-neighbour scoring running; report to follow. Launched the next main-line run on 8 H200s: `pf_459M_p128x8_esmc_afdb` (same recipe, 128-dim x 8-block pair track, batch budget 96 x 256^2).
+- 2026-09-24 00:20 — **`pf_459M_esmc_afdb` final (held-out, selection-free): TM 0.758 / 88% / RMSD 6.51 A, best-of-8 0.792** — ahead of ESMFold2-Fast (0.753 / 85% / 7.18) on the same proteins. No-neighbour <0.6: 0.567 / 63% (ESMFold2 0.631 / 73%). Report `pf_459M_esmc_afdb.md`.

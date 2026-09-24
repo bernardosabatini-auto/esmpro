@@ -1,12 +1,9 @@
-# pf_459M_esmc_afdb — latent flow run
+# pf_459M_esmc_afdb — pair track + ESMC-6B + 473k proteins on 8 H200s (the combined run)
 
-**Job** 48000412. Log `logs/lf_multinode_48000412.out`.
+**Job** 48000412, 2 x 4 H200 (`slurm/launch_esmc_afdb_big.sh`, `train_latent_flow_multinode.sbatch`), 2026-09-23 14:40-22:29 (7.8 h). Ran the full 60-epoch cosine schedule; best at the last epoch, still rising ~0.001 TM/epoch. Two earlier submissions died at the cache fill (host memory under-requested) and one was replaced to add residue-budget batching. Log `logs/lf_multinode_48000412.out`.
 
 ## Configuration
-`code/gate7_latent_flow.py`; arch {'d_model': 1024, 'n_layers': 24, 'n_heads': 16, 'dropout': 0.0, 'self_cond': True, 'd_cond': 2560}; 461.4M params; batch 128 per GPU; lr 0.0004; warmup 1000; EMA 0.999; p_drop 0.1; sample steps 25; eval every 1 on 100 proteins.
-
-Data-parallel world 8, effective batch 1024.
-Peak GPU 88.0 GB.
+`code/gate10_pair_flow.py` (via `--esm stored --h5-path dataset_100k_esmc.h5 --extra-train-h5 dataset_afdb_train_{0,1}_esmc.h5`): DiT d1024 x 24L x 16 heads + 64-dim pair track (6 gated triangular-multiplication blocks, checkpointed, bf16, compiled) = 461.4M params; conditioning = ESMC-6B last-layer embeddings (2560-d, precomputed, ragged host cache ~40 GB/rank); CFG dropout 0.1, self-conditioning, EMA 0.999 with warm-up; AdamW lr 4e-4, warm-up 1000, cosine over 60 epochs; **residue-budget batching** (B x Lmax^2 <= 128 x 256^2, cap 3x, so batches of 134-384 proteins, 1,024-3,072 effective) with a DDP-safe step count; eval every epoch on the 100 gate proteins at w=2, 25 Euler steps. 487 s/epoch (~210 steps), peak GPU 131 GB of 144. Train = 473,184 proteins (100k train split + Gate 8 AFDB shards); validation = the 100k val split.
 
 ## Curve
 | epoch | train | val | TM (best w) | TM>0.5 | RMSD | coverage |
@@ -74,8 +71,26 @@ Peak GPU 88.0 GB.
 
 Best TM 0.740287 at epoch 60.
 
+## Scores
+Selection set (w=2): TM 0.740 / 89% / RMSD 6.82 A at epoch 60 (best; final).
+
+**Held-out slice (offset 1000, selection-free, 25 Euler steps, K=8), `best_pf_459M_esmc_afdb.pt`:**
+
+| w | TM | TM>0.5 | RMSD | best-of-8 |
+|---|---|---|---|---|
+| 1.0 | 0.740 | 90% | 6.93 | 0.790 |
+| 1.5 | 0.758 | 87% | 6.55 | 0.797 |
+| **2.0** | **0.758** | **88%** | **6.51** | **0.792** |
+| 3.0 | 0.746 | 87% | 6.68 | 0.783 |
+
+**No-neighbour subsets (w=2):** nearest training structure < TM 0.6 (n=266): 0.567 / 63% / 12.78 A / best-of-8 0.628; < 0.5 (n=93): 0.512 / 42% / 15.06 A / 0.578.
+
+**External bar on the same proteins** (`esmfold2_comparison.md`, ESMFold2-Fast single-sequence): held-out 0.753 / 85% / 7.18 A; no-neighbour 0.631 / 73% and 0.563 / 60%.
+
+Predecessors on the same slices: `lf_174M_esmc` (80k) 0.732 / 89% / 6.84, no-neighbour 0.535 and 0.493; `lf_459M_afdb` (473k, ESM-2) 0.660 / 74% / 9.01, no-neighbour 0.474 and 0.430; inherited checkpoint 0.420 / 29% / 12.67. Coverage 100/100 in every row.
+
 ## Outcome
-TODO
+The best model of the project, and the first to beat the external bar on the held-out slice: **0.758 TM, 88% correct folds, 6.51 A mean RMSD** against ESMFold2-Fast's 0.753 / 85% / 7.18 A on the same 100 proteins with the same pipeline, and 0.79 TM with best-of-8 sampling. Relative to the 80k ESMC model it adds +0.026 TM held-out and +0.03 on the no-neighbour subsets, i.e. the 473k data step and the pair track together improved generalisation, not just seen folds. The curve was still rising at the end of the schedule (0.735 -> 0.740 over the last ten epochs) and the validation flow loss was still falling (0.0483), so unlike the 80k ESMC run this one is not overfitting; a longer schedule would likely add ~0.01. Residue-budget batching kept the H200s at 131 GB and made the pair track affordable (487 s/epoch for 461M params over 473k proteins). Coverage 100% at all 60 evaluations.
 
 ## What it changed
-TODO
+Held-out parity with ESMFold2-Fast is now a measured fact rather than a projection, at ~7% of its parameter count in the trainable model and with ensembles for free. The remaining gap is on novel folds: 0.567 vs 0.631 (<0.6) and 0.512 vs 0.563 (<0.5), narrowed from 0.10 to 0.06 TM by this run. `reports/PLAN.md` targets exactly that: the larger pair track (launched as `pf_459M_p128x8_esmc_afdb`), a structure-clustered split and experimental benchmark, a sample selector, more data at 512 residues, recycling. Caveats: AFDB models as truth; possible overlap of these validation proteins with ESMFold2's training; both systems at modest inference compute.
