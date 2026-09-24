@@ -38,6 +38,7 @@ relative than on the plain held-out slice.
    inference gets ~+0.02 for 8x compute, no retraining of the generator.
 
 ## Phase B (1-2 weeks, 8 H200s for one run at a time)
+*2026-09-24: experimental PDB targets built (pdb_build.md) and tested by fine-tuning (pdb_finetune.md): null. Recycling (structural self-conditioning, gate16) running at full scale.*
 5. **Data at the million scale, cleanly.** Extend to the Foldseek AFDB
    cluster representatives (~2.3M at <= 512 residues, ~4x the current set),
    built with `gate8` and clustered against the new held-out split. ESMC

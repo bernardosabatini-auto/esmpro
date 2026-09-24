@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-24 12:02 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-24 14:15 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -43,3 +43,4 @@ Updated 2026-09-24 12:02 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 09:50 — `pf_459M_p128x8_esmc_afdb` finished: early-stopped at epoch 50, best selection-set TM 0.741 / 88% / 6.84 A at epoch 42 (64-dim run: 0.740 at epoch 60). Full scoring running on one RTX; `pf_459M_p128x8_pdbft` fine-tune (473k + PDB x4 = 13 %, warm start confirmed, loss 0.054 at step 1) running on the 8 H200s; control fine-tune queued behind it.
 - 2026-09-24 10:25 — `pf_459M_p128x8_esmc_afdb` scored and reported: held-out 0.758 / 90% / 6.13 A (bo8 0.796), no-neighbour 0.573 / 0.514, CASP 0.703 / 74% / 8.10 A. Best model on every set; +0.005 over the 64-dim run. PDB fine-tune at epoch 2 (selection set 0.734-0.737; CASP is the test). GPUs: 8 H200s.
 - 2026-09-24 12:40 — PDB fine-tune (8 epochs) final weights on CASP: 0.703 / 74% / 7.80 A (before: 0.703 / 74% / 8.10 A); held-out scoring running, control fine-tune running on the H200s. New model `code/gate16_recycle_flow.py` (structural self-conditioning: the decoded latent estimate's distogram is fed back into the pair track) smoke-tested; full-scale run `pf_459M_p128x8_rec_esmc_afdb` (job 48192196) queued on the 8 H200s behind the control, scoring behind it.
+- 2026-09-24 13:50 — PDB fine-tune vs control reported (`pdb_finetune.md`): experimental targets null at fine-tune dose; the control's final weights are the new best (held-out 0.767 / 90%, CASP 0.708 / 74% / 7.52 A). Recycling run `pf_459M_p128x8_rec_esmc_afdb` started on the 8 H200s.
