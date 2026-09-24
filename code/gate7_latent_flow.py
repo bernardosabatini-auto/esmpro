@@ -365,6 +365,20 @@ def sample(net, esm, mask, n_steps=50, cfg_w=1.0, gen=None, project=True):
 # ---------------------------------------------------------------------------
 # Structure evaluation through the frozen decoder
 # ---------------------------------------------------------------------------
+
+def match_compiled_keys(sd, target_keys):
+    """torch.compile wraps sub-modules and prefixes their parameters with '_orig_mod.'; a
+    checkpoint saved from a compiled model will not load into an uncompiled one and vice
+    versa. Rename keys so they match the target's convention."""
+    target = set(target_keys)
+    if set(sd) == target: return sd
+    stripped = {k.replace("._orig_mod.", ".").replace("_orig_mod.", ""): v for k, v in sd.items()}
+    if set(stripped) == target: return stripped
+    # target is compiled, source is not: insert the prefix where the target has it
+    tmap = {k.replace("._orig_mod.", ".").replace("_orig_mod.", ""): k for k in target}
+    out = {tmap.get(k, k): v for k, v in stripped.items()}
+    return out
+
 def load_decoder(device, n_steps=3):
     import lightning as Lt, hydra
     from proteinfoundation.proteinflow.proteinae import ProteinAE
@@ -572,6 +586,7 @@ def main(a):
         if warch != arch or wex != rex:
             raise ValueError(f"warm-start arch mismatch: {warch} / {wex} vs {arch} / {rex}")
         w = torch.load(str(CKPT_DIR / a.warm_start), weights_only=True, map_location=device)
+        w = match_compiled_keys(w, raw.state_dict().keys())
         raw.load_state_dict(w); ema.load_state_dict(w)
         say(f"  WARM START from {a.warm_start} (epoch {wmeta.get('epoch')}, TM {wmeta.get('tm')}); fresh optimizer and schedule")
 
