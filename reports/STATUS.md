@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-24 05:30 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-24 05:55 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -38,3 +38,4 @@ Updated 2026-09-24 05:30 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 04:10 — `pf_174M_p128x8` stopped at plateau (epoch 40) and reported: held-out 0.621 / 71%, +0.01 over the 64-dim pair track. **GPUs in use: the 8 H200s of `pf_459M_p128x8_esmc_afdb` only.**
 - 2026-09-24 06:40 — CASP15/16 experimental benchmark (80 domains) built and scored: best model 0.698 / 72% / 8.32 A vs ESMFold2-Fast 0.741 / 79% / 7.15 A; run ordering preserved; 66/80 domains have a training fold (TM>0.5). Report `casp_benchmark.md`. GPUs: only the 8 H200s (epoch 27, 0.729).
 - 2026-09-24 07:50 — sample selector measured: consensus pick +0.01 TM (15-27% of the best-of-8 oracle gap), re-encoding and decoder-spread signals useless; confidence head deprioritised. Report `sample_selector.md`. GPUs: only the 8 H200s (epoch 30, 0.732).
+- 2026-09-24 09:20 — experimental PDB target set built (17,921 chains, ESMC embeddings, CASP/val guards); round trip on experimental structures 0.996-0.999 TM. Report `pdb_build.md`. Next: fine-tune the H200 checkpoint on 473k + PDB when job 48083691 ends (~15:00). GPUs: only the 8 H200s (epoch 33, 0.733).
