@@ -34,11 +34,19 @@ else:                                  # best_<label>.pt + sidecar
     meta = json.loads(open(str(ck) + ".meta.json").read())
     arch = {k: meta[k] for k in ("d_model", "n_layers", "n_heads", "dropout", "self_cond", "d_cond") if k in meta}
     weights = torch.load(str(ck), weights_only=True)
-if meta.get("model") == "PairFlowNet" or (a.ckpt.endswith(".ckpt") and st.get("model") == "PairFlowNet"):
+mtype = meta.get("model") or (st.get("model") if a.ckpt.endswith(".ckpt") else None)
+if mtype in ("PairFlowNet", "RecFlowNet", "_Net"):
     import gate10_pair_flow as G10
     G10.install()
-    ex = meta.get("extra_arch") or st.get("extra_arch") if a.ckpt.endswith(".ckpt") else {k: meta[k] for k in ("d_pair", "n_pair_blocks", "pair_contact") if k in meta}
-    net = G10.PairFlowNet(**arch, **ex).to(dev); print("pair-track model", ex)
+    ex = (meta.get("extra_arch") or st.get("extra_arch")) if a.ckpt.endswith(".ckpt") else \
+         {k: meta[k] for k in ("d_pair", "n_pair_blocks", "pair_contact", "recycle", "p_rec", "rec_every") if k in meta}
+    ex = dict(ex)
+    if ex.pop("recycle", False):
+        import gate16_recycle_flow as G16
+        G16.install(); G16.REC["p_rec"] = ex.pop("p_rec", 0.5); G16.REC["rec_every"] = ex.pop("rec_every", 5)
+        net = G16.RecFlowNet(**arch, **ex).to(dev); print("recycling pair-track model", ex, "rec_every", G16.REC["rec_every"])
+    else:
+        net = G10.PairFlowNet(**arch, **ex).to(dev); print("pair-track model", ex)
 else:
     net = G.LatentFlowNet(**arch).to(dev)
 net.load_state_dict(weights); net.eval()
