@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-24 18:18 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-24 18:59 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -49,3 +49,4 @@ Updated 2026-09-24 18:18 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 16:20 — recycling main line relaunched under the fused code at budget 108: peak 132 GB/GPU, epoch-1 TM 0.180 (ref 0.179), epoch 1 1569 s (includes compilation; steady state pending). 174M recycling A/B on 4 RTX relaunched at budget 112 (peak 63 GB, ~320 s/epoch). 12 GPUs in use.
 - 2026-09-24 18:10 — papers read (`papers_and_500aa.md`): ProteinAE round trip holds to 640 residues (TM 0.999); SimpleFold-style repeated batching profiled at 1.7-2.9x samples/GPU-s; quality A/B `pf_174M_p64x6_esmc_r4` launched on 4 RTX (16 GPUs in use: 8 H200 + 8 RTX). Recycling H200 run at epoch 6: 0.648 vs 0.659 reference.
 - 2026-09-24 18:40 — 500-aa data build launched (user request): AFDB v6 cluster reps 257-512 aa pLDDT>=70 (161k, 4 shard jobs), experimental PDB chains 257-512 (16.4k), CASP domains <=512 (109); ESMC embeddings per file. To free GPUs, the RTX recycling ablation `pf_174M_p64x6_rec_esmc` was stopped at epoch 28 (0.661 vs twin 0.696 at equal epochs, with 8x fewer steps per epoch; inconclusive). H200 recycling run at epoch 9: 0.666 vs 0.691 reference. Repeated-batching A/B `pf_174M_p64x6_esmc_r4` running on 4 RTX.
+- 2026-09-24 19:00 — 500-aa data: AFDB long set built and embedded: 4 shards x 40,200 = 160,800 proteins (257-512 aa, pLDDT>=70, zero download failures, 48/s per job, ESMC 4 x 72.7 GB); 1,000 held out as `dataset_long_val{,_esmc}.h5`. Long PDB (16.4k) + CASP<=512 (109) build running. Trainer ready for a 512 window (`ESM_PROAE_MAX_LEN=512`, warm start extends the position table).
