@@ -15,8 +15,10 @@ ap = argparse.ArgumentParser(); ap.add_argument("--splits", default="train,val")
 ap.add_argument("--out", default=str(G.PROJECT / "data/phase1_dataset/dataset_100k_esmc.h5"))
 ap.add_argument("--esm-path", default=str(G.PROJECT / "data/esmc6b"))
 ap.add_argument("--src", default=str(G.H5_PATH), help="source HDF5 with split groups holding z, ca_coords and a sequence attr")
+ap.add_argument("--kind", default="esmc", help="esmc (default) or esm2: which language model to embed with")
 a = ap.parse_args()
-emb = G.OnlineESM(a.esm_path, device="cuda", kind="esmc")
+if a.kind == "esm2" and a.esm_path.endswith("esmc6b"): a.esm_path = str(G.PROJECT / "data/esm2/esm2_t33_650M_UR50D")
+emb = G.OnlineESM(a.esm_path, device="cuda", kind=a.kind)
 src = h5py.File(a.src, "r"); out = h5py.File(a.out, "a")
 t0 = time.perf_counter()
 for split in a.splits.split(","):
@@ -35,10 +37,10 @@ for split in a.splits.split(","):
             g.create_dataset("z", data=gi["z"][:]); g.create_dataset("ca_coords", data=gi["ca_coords"][:])
             if "backbone" in gi: g.create_dataset("backbone", data=gi["backbone"][:])
             for k, v in gi.attrs.items(): g.attrs[k] = v
-            g.attrs["embedding"] = "ESMC-6B last hidden state, bf16 autocast, stored fp16"
+            g.attrs["embedding"] = ("ESMC-6B last hidden state" if a.kind == "esmc" else "ESM-2 650M layer 33") + ", bf16 autocast, stored fp16"
         if (s // a.bs) % 100 == 0:
             el = time.perf_counter() - t0
             print(f"  {split} {s+len(batch)}/{len(todo)}  {el:.0f}s  eta {el/(s+len(batch))*(len(todo)-s-len(batch))/60:.0f} min", flush=True)
         out.flush()
-out.attrs["source"] = f"ESMC-6B (biohub/ESMC-6B) embeddings of {a.src} sequences"
+out.attrs["source"] = f"{a.kind} embeddings ({a.esm_path}) of {a.src} sequences"
 out.close(); print(f"done {time.perf_counter()-t0:.0f}s -> {a.out}")

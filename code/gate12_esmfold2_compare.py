@@ -17,7 +17,8 @@ from gate6_corrected_eval import kabsch_rmsd
 ap = argparse.ArgumentParser()
 ap.add_argument("--model", default=str(PROJECT / "data/esmfold2_fast"))
 ap.add_argument("--loops", type=int, default=3); ap.add_argument("--steps", type=int, default=50)
-ap.add_argument("--sets", default="heldout,lt0.6,lt0.5"); ap.add_argument("--limit", type=int, default=0)
+ap.add_argument("--sets", default="heldout,lt0.6,lt0.5", help="heldout, lt0.6, lt0.5, or names:<file> (val names in --h5, one per line)")
+ap.add_argument("--limit", type=int, default=0); ap.add_argument("--h5", default=str(H5_PATH)); ap.add_argument("--tag", default="esmfold2_fast")
 a = ap.parse_args()
 from transformers.models.esmfold2.modeling_esmfold2 import EsmFold2Model
 from transformers.models.esmfold2.protein_utils import prepare_protein_features, output_to_pdb
@@ -28,12 +29,15 @@ model = EsmFold2Model.from_pretrained(a.model, dtype=torch.float32).eval().to(de
 print(f"loaded ESMFold2-Fast in {time.perf_counter()-t0:.0f}s, {sum(p.numel() for p in model.parameters())/1e9:.2f}B params, "
       f"{torch.cuda.memory_allocated()/1e9:.1f} GB", flush=True)
 
-h = h5py.File(H5_PATH, "r"); vnames = list(h["val"].keys())
+h = h5py.File(a.h5, "r"); vnames = list(h["val"].keys())
 torch.manual_seed(42); perm = torch.randperm(len(vnames)).tolist()
 sets = {}
 if "heldout" in a.sets: sets["heldout"] = [vnames[i] for i in perm[1000:1100]]
 for tag in ("lt0.6", "lt0.5"):
-    if tag in a.sets: sets[tag] = [l.strip() for l in open(PROJECT / "notes" / f"val_noneighbour_{tag}.txt") if l.strip()]
+    if tag in a.sets.split(","): sets[tag] = [l.strip() for l in open(PROJECT / "notes" / f"val_noneighbour_{tag}.txt") if l.strip()]
+for spec in a.sets.split(","):
+    if spec.startswith("names:"):
+        f = spec[6:]; sets[os.path.basename(f).replace(".txt", "")] = [l.strip() for l in open(f) if l.strip()]
 todo = sorted({n for v in sets.values() for n in v})
 if a.limit: todo = todo[:a.limit]
 print(f"{len(todo)} unique proteins across sets {list(sets)}", flush=True)
@@ -70,5 +74,5 @@ for tag, names in sets.items():
     summary[tag] = s
     print(f"{tag:8s} {s['n']:4d} {s['tm']:6.3f} {s['tm_frac']:7.2f} {s['rmsd']:6.2f} {s['ptm']:5.2f} {s['coverage']:6.2f} {s['sec_per_protein']:6.2f}", flush=True)
 json.dump({"model": a.model, "loops": a.loops, "steps": a.steps, "summary": summary, "per_protein": per},
-          open(PROJECT / "notes" / "gate12_esmfold2_fast.json", "w"), indent=1)
+          open(PROJECT / "notes" / f"gate12_{a.tag}.json", "w"), indent=1)
 print("done")

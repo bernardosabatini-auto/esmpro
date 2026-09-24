@@ -9,5 +9,5 @@
 #SBATCH --output=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/logs/%x_%j.out
 source /n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/slurm/env.sh
 cd $ESM_PROAE_ROOT/code
-python -u gate12_esmfold2_compare.py --loops ${LOOPS:-3} --steps ${STEPS:-50} ${LIMIT:+--limit $LIMIT} 2>&1 | grep -v -i -E "warn|Loading weights|UNEXPECTED|^Key|^---|^Notes|can be ignored"
+python -u gate12_esmfold2_compare.py --loops ${LOOPS:-3} --steps ${STEPS:-50} ${LIMIT:+--limit $LIMIT} ${EXTRA} 2>&1 | grep -v -i -E "warn|Loading weights|UNEXPECTED|^Key|^---|^Notes|can be ignored"
 echo CMP_DONE

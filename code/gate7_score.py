@@ -16,6 +16,7 @@ ap = argparse.ArgumentParser(); ap.add_argument("--ckpt", required=True)
 ap.add_argument("--n", type=int, default=100); ap.add_argument("--k", type=int, default=8)
 ap.add_argument("--cfg-w", type=str, default="1,1.5,2,3,4"); ap.add_argument("--steps", type=int, default=50)
 ap.add_argument("--bs", type=int, default=20)
+ap.add_argument("--h5", default=None, help="score against this HDF5 (val split) instead of the checkpoint's own data file; its esm2_emb must match the checkpoint's conditioner")
 ap.add_argument("--names-file", default=None, help="score exactly these val protein names (one per line) instead of the permutation slice")
 ap.add_argument("--offset", type=int, default=0,
                 help="skip this many proteins of the seed-42 permutation; 0 = the gate set, which "
@@ -56,7 +57,7 @@ if online:
 print(f"checkpoint {a.ckpt}: epoch {meta['epoch']}, train-time TM {meta['tm']:.3f} at w={meta['cfg_w']}, arch {arch}")
 
 # identical protein selection to gate6_score_checkpoint.py
-h5p = meta.get("h5_path") or (st.get("h5_path") if a.ckpt.endswith(".ckpt") else None) or os.environ.get("SCORE_H5", "")
+h5p = a.h5 or meta.get("h5_path") or (st.get("h5_path") if a.ckpt.endswith(".ckpt") else None) or os.environ.get("SCORE_H5", "")
 vf = ProteinDatasetFAPE(h5p or H5_PATH, "val")
 if h5p: print(f"embeddings/latents from {h5p}")
 torch.manual_seed(42); idx = torch.randperm(len(vf))[a.offset:a.offset + a.n].tolist()
@@ -86,4 +87,4 @@ for w in [float(x) for x in a.cfg_w.split(",")]:
           f"{r['coverage']:5.2f} {time.perf_counter()-t0:4.0f}", flush=True)
 json.dump({"ckpt": a.ckpt, "meta": meta, "n": N, "k": a.k, "steps": a.steps,
            "rows": {str(w): r for w, r in rows.items()}},
-          open(PROJECT / "notes" / f"tm_{a.ckpt.replace('.pt', '')}_sweep_{'named_' + os.path.basename(a.names_file).replace('.txt','') if a.names_file else 'off' + str(a.offset)}.json", "w"), indent=2)
+          open(PROJECT / "notes" / f"tm_{a.ckpt.replace('.pt', '').replace('.ckpt', '')}_sweep_{'named_' + os.path.basename(a.names_file).replace('.txt','') if a.names_file else 'off' + str(a.offset)}.json", "w"), indent=2)

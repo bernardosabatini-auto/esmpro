@@ -428,6 +428,7 @@ def evaluate_structures(net, dec, val, device, n=100, bs=20, n_steps=50, cfg_w=1
         out = {"tm": float(np.mean(meas)) if meas else float("nan"),
                "tm_frac": float(np.mean([tm_by_k[0].get(x, 0.0) > 0.5 for x in names])),
                "tm_best_of_k": float(np.mean(best)), "k": n_samples,
+               "tm_per_protein": [tm_by_k[0].get(x) for x in names], "best_per_protein": best,
                "coverage": len(meas) / n, "rmsd": float(np.nanmean(rm)),
                "fape": float(np.nanmean(fape)), "z_mse": float(np.nanmean(zerr)), "cfg_w": cfg_w,
                "n_nonfinite": n_bad}
