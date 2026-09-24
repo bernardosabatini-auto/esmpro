@@ -26,12 +26,12 @@ relative than on the plain held-out slice.
    on the same ESMC-6B) in single-sequence mode and ESMFold on the held-out
    slice and the no-neighbour subsets, same Foldseek TM/RMSD pipeline. Without
    this no claim is credible. Cost: a few RTX-hours.
-3. **A clean benchmark.** (a) Structure-clustered split: Foldseek-cluster the
+3. **A clean benchmark.** *(b done 2026-09-24, see casp_benchmark.md; a pending)* (a) Structure-clustered split: Foldseek-cluster the
    573k structures and hold out whole clusters (TM < 0.5 to any training
    protein) so future numbers are generalisation numbers by construction.
    (b) An experimental set: CAMEO/CASP single-chain targets <= 256 residues
    (then <= 512), scored against experimental coordinates.
-4. **Sample selector.** Best-of-8 is worth +0.03-0.06 but needs the answer to
+4. **Sample selector.** *(done 2026-09-24, see sample_selector.md: consensus +0.01, ~20 % of the gap; confidence head deprioritised)* Best-of-8 is worth +0.03-0.06 but needs the answer to
    pick. Train a small confidence head on the flow model's final features to
    predict per-sample TM (labels from our own pipeline on training samples),
    and measure how much of the oracle gap it recovers. If it recovers half,
