@@ -11,8 +11,10 @@ ap.add_argument("--d-model", type=int, default=1024); ap.add_argument("--n-layer
 ap.add_argument("--budget", type=int, default=int(os.environ.get("STEP_BUDGET", "48"))); ap.add_argument("--n-steps", type=int, default=12)
 ap.add_argument("--recycle", action="store_true")
 ap.add_argument("--fused", action="store_true")
+ap.add_argument("--h5", default=None, help="data file for the batches (default dataset_100k_esmc.h5); use a long shard with ESM_PROAE_MAX_LEN=512")
 a = ap.parse_args(); dev = torch.device("cuda")
-train = G.RamSplit("train", 6000, 4, h5_path=str(G.PROJECT / "data/phase1_dataset/dataset_100k_esmc.h5"))
+train = G.RamSplit("train", 6000, 4, h5_path=a.h5 or str(G.PROJECT / "data/phase1_dataset/dataset_100k_esmc.h5"))
+print(f"window MAX_LEN={G.MAX_LEN}, data {os.path.basename(a.h5) if a.h5 else 'dataset_100k_esmc.h5'}", flush=True)
 if a.recycle:
     import gate16_recycle_flow as G16; G16.install(); Net = G16.RecFlowNet; loss_fn = G16.fm_loss_rec
 else:
