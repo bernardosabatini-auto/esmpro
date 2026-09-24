@@ -19,3 +19,4 @@
 - 2026-09-23 22:30 — `pf_174M_p128x8` (128-dim pair, batch 64) epoch 16: TM 0.597-0.602 / 66-69% vs 0.570 (64-dim pair) and 0.552 (no pair) at the same epoch on ESM-2. Larger pair track keeps a ~+0.03 lead over the small one.
 - 2026-09-23 23:00 — `pf_459M_esmc_afdb` epoch 35 (4h47m): **TM 0.726 / 88% / RMSD 7.16 A** (selection set), still rising ~0.002/epoch; above the 80k ESMC model's best selection score (0.707).
 - 2026-09-24 01:30 — Pair track (64-dim) at epoch 40: ESM-2 0.604 vs no-pair 0.592; ESMC-6B 0.710 vs no-pair 0.691 (the no-pair ESMC run needed epoch 88 to reach 0.707). The pair track holds a +0.01-0.02 lead and reaches a given TM in about half the epochs.
+- 2026-09-24 02:40 — `pf_459M_esmc_afdb` epoch 50 (6.5 h): **TM 0.736 / 89% / RMSD 7.04 A** (selection set), validation flow loss still falling (0.0489; no overfitting at 473k, unlike the 80k ESMC run). 10 epochs of cosine anneal remain.
