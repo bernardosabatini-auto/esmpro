@@ -617,7 +617,8 @@ def main(a):
         wmeta = json.load(open(str(CKPT_DIR / a.warm_start) + ".meta.json"))
         warch = {k: wmeta[k] for k in arch if k in wmeta}
         rex = getattr(raw, "extra_arch", {}); wex = wmeta.get("extra_arch") or {k: wmeta.get(k) for k in rex}   # pair keys are stored top-level
-        if warch != arch or wex != rex:
+        cmp = lambda d: {k: v for k, v in d.items() if k not in ("pair_fused", "recycle", "p_rec", "rec_every")}   # convertible / non-structural
+        if warch != arch or cmp(wex) != cmp(rex):
             raise ValueError(f"warm-start arch mismatch: {warch} / {wex} vs {arch} / {rex}")
         w = torch.load(str(CKPT_DIR / a.warm_start), weights_only=True, map_location=device)
         w = adapt_state_dict(w, raw.state_dict().keys())
