@@ -69,7 +69,7 @@ def fm_loss_rec(net, z1, esm, mask, p_drop=0.1, p_sc=0.5, contact=None):
         z1, esm, mask = G10._repeat(z1, R), G10._repeat(esm, R), G10._repeat(mask, R)
     B = z1.shape[0]; dev = z1.device
     x0 = torch.randn_like(z1)
-    t = torch.sigmoid(torch.randn(B, device=dev)); tt = t[:, None, None]
+    t = G7.sample_t(B, dev); tt = t[:, None, None]
     x_t = (1 - tt) * x0 + tt * z1
     v_target = z1 - x0
     drop = torch.rand(B, device=dev) < p_drop

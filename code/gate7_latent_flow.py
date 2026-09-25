@@ -324,12 +324,23 @@ class LatentFlowNet(nn.Module):
 # ---------------------------------------------------------------------------
 # Flow matching
 # ---------------------------------------------------------------------------
+
+T_M, T_S, T_UNIF = float(os.environ.get("T_LOGIT_M", "0")), float(os.environ.get("T_LOGIT_S", "1")), float(os.environ.get("T_UNIF", "0"))
+def sample_t(B, dev):
+    """Flow time: logit-normal(m, s) with a T_UNIF fraction uniform. Defaults (0, 1, 0) = the recipe so far;
+    SimpleFold uses (0.8, 1.7, 0.02) to oversample t near 1 (fine detail)."""
+    t = torch.sigmoid(T_M + T_S * torch.randn(B, device=dev))
+    if T_UNIF > 0:
+        u = torch.rand(B, device=dev) < T_UNIF
+        t = torch.where(u, torch.rand(B, device=dev), t)
+    return t.clamp(1e-4, 1 - 1e-4)
+
 def fm_loss(net, z1, esm, mask, p_drop=0.1, p_sc=0.5, t_dist="logit-normal"):
     """esm: (B,L,1280) conditioning features (stored or online, any float dtype)."""
     B = z1.shape[0]; dev = z1.device
     x0 = torch.randn_like(z1)
     if t_dist == "logit-normal":
-        t = torch.sigmoid(torch.randn(B, device=dev))
+        t = sample_t(B, dev)
     else:
         t = torch.rand(B, device=dev)
     tt = t[:, None, None]
