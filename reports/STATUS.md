@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-24 20:11 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-24 22:07 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -53,3 +53,4 @@ Updated 2026-09-24 20:11 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 19:40 — recycling H200 run at epoch 10: 0.698 / 87% vs reference 0.698 / 85% at the same epoch, at 1.5x the epoch time (1,250 s vs 796 s). Tied, not ahead; decision at epoch 15. Long PDB set built (13,865 -> 13,498 after removing validation homologs), CASP<=512 (109 domains) built and embedded; round trips 0.997-0.999. Repeated batching (R=4) ahead of its twin at equal epochs (0.643 vs 0.604 at epoch 6).
 - 2026-09-24 20:10 — long data complete and guarded (`long_data_build.md`): 159,799 AFDB + 13,133 PDB long train, 1,000 long val, 109 CASP<=512; 512-window smoke test passed (2 RTX, R=2). Ready to launch `slurm/launch_long_finetune.sh` on the H200s after the recycling epoch-15 decision.
 - 2026-09-24 20:40 — recycling retired (`recycling.md`: tied at epoch 10, -0.01 at epoch 13, 1.5x cost). Repeated batching R=4 at epoch 30: 0.711 vs twin 0.696 at equal epochs (263 s/epoch on 4 RTX) -> adopted. **512-residue fine-tune `pf_459M_p128x8_long512` launched on the 8 H200s** (warm start from the best 256 checkpoint, R=2, budget 60, 12 epochs, selection on 1,000 long val proteins).
+- 2026-09-24 22:20 — repeated batching reported (`repeated_batching.md`): R=4 equals the twin's plateau and beats it on held-out (0.743 vs 0.732), 2.9x cheaper per sample; adopted. 512 fine-tune relaunched with bf16 pair bias (job 48344017). 8 RTX free for two paper-derived ablations (timestep resampling; structural loss through the decoder).

@@ -52,3 +52,4 @@ See also [PLAN.md](PLAN.md) for the next steps and [STATUS.md](STATUS.md) for li
 | [efficiency](efficiency.md) | step-time profile of the 459M pair flow; fused triangle GEMMs, compiled DiT, aligned lengths | pair track is the inherent cost; kernel fixes -11% time / -13% memory; recycling +50%/step |
 | [long_data_build](long_data_build.md) | 257-512-residue data: 159.8k AFDB reps + 13.1k PDB chains + 1k val + 109 CASP domains, ESMC embeddings, guards, controls | ready for the 512 stage; autoencoder round trip 0.997-0.999 |
 | [recycling](recycling.md) | structural self-conditioning (decoded distogram into the pair track), 459M main line | **retired**: tied at epoch 10, behind by 0.01 at epoch 13, at 1.5x the cost per epoch |
+| [repeated_batching](repeated_batching.md) | R=4 copies per protein sharing one pair computation (174M, ESMC, 80k, 4 RTX) | **adopted**: same plateau (0.717 vs 0.716), ahead at every epoch, 2.9x cheaper per sample; held-out 0.743 vs 0.732 |
