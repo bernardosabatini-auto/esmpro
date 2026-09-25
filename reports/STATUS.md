@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-25 03:02 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-25 03:29 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -56,3 +56,4 @@ Updated 2026-09-25 03:02 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-24 22:20 — repeated batching reported (`repeated_batching.md`): R=4 equals the twin's plateau and beats it on held-out (0.743 vs 0.732), 2.9x cheaper per sample; adopted. 512 fine-tune relaunched with bf16 pair bias (job 48344017). 8 RTX free for two paper-derived ablations (timestep resampling; structural loss through the decoder).
 - 2026-09-24 23:00 — **first long-protein number:** 512 fine-tune epoch 1 (2,404 s, peak 116 GB): long-val (257-512 aa) TM 0.569 / 56% / 19.1 A, coverage 100%. Baseline scoring of the 256-window checkpoint on the same set queued. Two RTX ablations (late-t resampling; structural LDDT loss) running vs the R=4 reference.
 - 2026-09-25 03:05 — structural LDDT loss retired (`struct_loss.md`). **Late-t timestep resampling is winning:** 0.732 at epoch 66 vs the R=4 reference's 0.717 plateau, still rising; runs to its stop, then scored. 512 fine-tune at epoch 8: long-val 0.587 / 60-63%, flattening; baseline scoring of the 256 checkpoint on long val now has a GPU.
+- 2026-09-25 03:40 — **baseline on long proteins:** the 256-window checkpoint run at the 512 window (position table extended) already scores long-val 0.560 / 59% / 19.8 A (n=200), CASP<=512 0.714 / 79%, long CASP (257-512, n=29) 0.730 / 86% / 10.8 A. The 512 fine-tune sits at 0.587 on the selection subset at epoch 8, i.e. the long data has added ~+0.02-0.03 so far; the relative-position attention bias already generalises to length. Final scoring of the fine-tune queued behind it.
