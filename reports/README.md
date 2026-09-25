@@ -54,3 +54,4 @@ See also [PLAN.md](PLAN.md) for the next steps and [STATUS.md](STATUS.md) for li
 | [recycling](recycling.md) | structural self-conditioning (decoded distogram into the pair track), 459M main line | **retired**: tied at epoch 10, behind by 0.01 at epoch 13, at 1.5x the cost per epoch |
 | [repeated_batching](repeated_batching.md) | R=4 copies per protein sharing one pair computation (174M, ESMC, 80k, 4 RTX) | **adopted**: same plateau (0.717 vs 0.716), ahead at every epoch, 2.9x cheaper per sample; held-out 0.743 vs 0.732 |
 | [struct_loss](struct_loss.md) | LDDT auxiliary loss through the differentiable decoder (174M, R=4 recipe) | **retired**: -0.11 at epoch 10, still -0.01 to -0.02 at epoch 36, 1.5x slower |
+| [late_t_resampling](late_t_resampling.md) | SimpleFold flow-time distribution (t toward 1), 174M R=4 recipe | small uniform gain: held-out 0.747 vs 0.743, novel folds +0.01, RMSD -0.4 A; in the recipe |
