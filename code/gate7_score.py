@@ -49,7 +49,7 @@ if mtype in ("PairFlowNet", "RecFlowNet", "_Net"):
         net = G10.PairFlowNet(**arch, **ex).to(dev); print("pair-track model", ex)
 else:
     net = G.LatentFlowNet(**arch).to(dev)
-net.load_state_dict(G.adapt_state_dict(weights, net.state_dict().keys())); net.eval()
+net.load_state_dict(G.extend_pos_table(G.adapt_state_dict(weights, net.state_dict().keys()), net.state_dict())); net.eval()
 online = meta.get("esm", "stored") == "online"
 embed = None
 if online:
