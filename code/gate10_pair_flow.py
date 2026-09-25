@@ -48,7 +48,7 @@ class PairAttention(nn.Module):
         rel = (pos[None, :] - pos[:, None]).clamp(-self.rel, self.rel) + self.rel
         bias = self.bias(rel).permute(2, 0, 1).unsqueeze(0)                       # (1,H,L,L)
         pad = torch.zeros(B, 1, 1, L, device=x.device, dtype=bias.dtype).masked_fill(~mask[:, None, None, :], float("-inf"))
-        o = F.scaled_dot_product_attention(q, k, v, attn_mask=(bias + pb + pad).to(q.dtype),
+        o = F.scaled_dot_product_attention(q, k, v, attn_mask=(bias.to(q.dtype) + pb.to(q.dtype) + pad.to(q.dtype)),
                                            dropout_p=self.dropout if self.training else 0.0)
         return self.out(o.transpose(1, 2).reshape(B, L, D))
 
@@ -258,7 +258,7 @@ class PairFlowNet(nn.Module):
         c_pool = (c_tok * m).sum(1) / m.sum(1).clamp(min=1.0)
         c = self.t_mlp(timestep_embedding(t, self.d_model)) + c_pool
         pb_all = self.pair_bias(self.pair_bias_norm(pair)).permute(0, 3, 1, 2)   # (B, n_layers*H, L, L), once
-        pbs = pb_all.to(h.dtype).contiguous().split(self.n_heads, dim=1)   # one split (single cat in backward) instead of 24 sliced copies
+        pbs = pb_all.to(torch.bfloat16 if pb_all.is_cuda else pb_all.dtype).contiguous().split(self.n_heads, dim=1)   # bf16: the residual stream h is fp32 and .to(h.dtype) doubled the largest tensor of the model
         for blk, pb in zip(self.blocks, pbs):
             h = blk(h, c, mask, pb)
         s, b = self.out_ada(c).unsqueeze(1).chunk(2, dim=-1)
