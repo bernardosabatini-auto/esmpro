@@ -751,7 +751,7 @@ def main(a):
             for c, z, mask, _, _ in val.batches(a.batch_size, False):
                 z, mask = z.to(device), mask.to(device)
                 with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
-                    esm = embed(c) if embed is not None else c.to(device)
+                    esm = embed(c, L=mask.shape[1]) if embed is not None else c.to(device)   # online: embed at the bucket's cropped length
                     torch.manual_seed(1234 + vn)          # same noise/t each epoch
                     vl += fm_loss(ema, z, esm, mask, p_drop=0.0, p_sc=0.0).item()
                 vn += 1
