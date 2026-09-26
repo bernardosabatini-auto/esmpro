@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-26 09:32 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-26 10:12 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -64,3 +64,4 @@ Updated 2026-09-26 09:32 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-26 08:40 — utilisation pass (efficiency.md addendum): DCGM shows SM active ~0.80 inside steps, tensor cores 10%; the 44% dashboard figure is allocated-idle time. Shipped distributed evaluation, chunked Foldseek (N^2 -> N x 64 alignments, identical scores), 16 Foldseek threads. R=8 copies is 13% faster at equal memory; quality A/B launched on 4 RTX. From-scratch 512 run at epoch 31/40 (long val ~0.60).
 - 2026-09-26 09:20 — from-scratch 512 run `pf_459M_p128x8_long512_scratch` early-stopped at epoch 30, best long-val 0.605 at epoch 22 (fine-tune: 0.587); scoring running. H200 capacity profile at 512/R=8: 459M+pair128x8 0.79 s/step (21.9k residues, 87 GB at budget 16); 840M trunk 0.79 s (15.1k, 84 GB at budget 12); pair 128x12 0.68 s (60 GB); pair 192x8 1.06 s. To keep the H200s busy while 627k extra short AFDB proteins build (4 RTX shards), a second-cycle fine-tune of the from-scratch model at R=8 launched (`pf_459M_p128x8_long512_cycle2`); the 840M run on ~1.3M proteins follows the build.
 - 2026-09-26 10:00 — **`pf_459M_p128x8_long512_scratch` is the best model on every set**: held-out 0.785 / 91% / 5.72 A, no-neighbour 0.591 / 0.541, CASP<=256 0.715 / 74% / 6.97 A, long val (1000) 0.591 / 67%, CASP<=512 0.728, long CASP 0.763 / 90%. Gap to ESMFold2-Fast now 0.02-0.03 on CASP. Report pushed.
+- 2026-09-26 11:00 — **627k extra short AFDB v6 representatives built** (4 shards x 156.7k, 0 failures, 44 min build + 28 min ESMC each; 4 x 94 GB embeddings). Short training pool now ~1.1M proteins. Sequence guards (val, CASP) running; the 840M-trunk main line on ~1.3M proteins is queued behind the cycle2 fine-tune once the guards finish. cycle2 relaunched at budget 18 after an OOM at 22.
