@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-26 15:18 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-26 15:19 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -75,3 +75,4 @@ Updated 2026-09-26 15:18 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-26 17:20 — stochastic-sampler sweep: TM-ens and flexibility within +-0.01 of the ODE at tau 0.3-1.0; guidance weight is the diversity dial. R=8 quality run finished (scoring running). Pair-free run resubmitted with 720 GB host RAM (pending GPUs). Co-design prototype at epoch ~8.
 - 2026-09-26 18:00 — R=8 confirmed (repeated_batching.md addendum): held-out 0.758 vs 0.747 (R=4), CASP 0.700 vs 0.695, 28% less GPU time per sample; recipe. Co-design prototype folding 0.557 at epoch 6 (twin 0.643), rising; its 3-mode evaluation queued. Pair-free 512 run started (720 GB host RAM).
 - 2026-09-26 18:40 — co-design prototype, first 3-mode evaluation on an early checkpoint (~epoch 12, folding TM 0.645 on the eval set): inverse-folding recovery 14% (random ~6%), inverse-fold scTM 0.26; co-design scTM 0.31 (1% > 0.5), native identity 11%. The sequence pathway works but is weak this early; re-evaluate at epoch 20 (run then paused so the pair-free ablation gets 8 RTX; pair-free needs > 736 GB host RAM, i.e. a full RTX node).
+- 2026-09-26 19:00 — 840M main line restarted with a 12-epoch cosine (job 48805457): an epoch over 1.26M proteins x 8 copies is ~3 h (9.7k steps at 124.7 GB), so 30 epochs would have taken 90 h; 12 epochs = 1.5x the samples of the best 459M run, ~36 h.
