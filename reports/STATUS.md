@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-26 11:03 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-26 11:53 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -66,3 +66,4 @@ Updated 2026-09-26 11:03 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-26 10:00 — **`pf_459M_p128x8_long512_scratch` is the best model on every set**: held-out 0.785 / 91% / 5.72 A, no-neighbour 0.591 / 0.541, CASP<=256 0.715 / 74% / 6.97 A, long val (1000) 0.591 / 67%, CASP<=512 0.728, long CASP 0.763 / 90%. Gap to ESMFold2-Fast now 0.02-0.03 on CASP. Report pushed.
 - 2026-09-26 11:00 — **627k extra short AFDB v6 representatives built** (4 shards x 156.7k, 0 failures, 44 min build + 28 min ESMC each; 4 x 94 GB embeddings). Short training pool now ~1.1M proteins. Sequence guards (val, CASP) running; the 840M-trunk main line on ~1.3M proteins is queued behind the cycle2 fine-tune once the guards finish. cycle2 relaunched at budget 18 after an OOM at 22.
 - 2026-09-26 11:40 — cycle2 fine-tune OOMed twice at R=8 (budget 22, then 18 at step 3000, 143 GB): the residue-budget law keeps pair memory constant but short buckets carry 8x the trunk activations. Added `TOKEN_CAP` (samples x residues per step, default 32k in the long launcher); relaunched. R=8 quality check at epoch 24: 0.724 vs the R=4 late-t reference's 0.708 at equal epochs (ahead), but 377 s/epoch vs 261 on RTX at this budget: per-epoch efficiency to be checked at the end.
+- 2026-09-26 12:40 — extra short set guarded: 8,141 proteins with a validation homolog (>50% id) or a CASP near-identical (>=90%) removed -> **618,658** kept. Training pool now 1.09M short + 173k long = 1.26M proteins. **840M main line `pf_840M_p128x8_long512_1p3M` queued** (d1280 x 28 x 20 heads + pair 128x8, R=8, budget 12, TOKEN_CAP 32k, lr 3e-4, 30 epochs, late-t, selection on long val); scoring gated on success. Runs when the GPU cap allows (cycle2 fine-tune holds 8 H200s).
