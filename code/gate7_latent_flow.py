@@ -33,7 +33,8 @@ D_LAT, D_ESM = 8, 1280
 MAX_LEN = int(os.environ.get("ESM_PROAE_MAX_LEN", "256"))   # residue window; 512 for the long-protein stage
 BUDGET_REF = 256                                              # the residue budget is always bs x 256^2, whatever the window
 PAD8 = os.environ.get("PAD8", "1") == "1"                 # pad bucket length to a multiple of PAD_MULT
-PAD_MULT = int(os.environ.get("PAD_MULT", "8"))            # coarser (32) -> fewer distinct shapes for CUDA graphs
+PAD_MULT = int(os.environ.get("PAD_MULT", "8"))
+TOKEN_CAP = int(os.environ.get("TOKEN_CAP", "0"))          # max sample-residues per step (proteins x copies x Lmax); 0 = off            # coarser (32) -> fewer distinct shapes for CUDA graphs
 DIT_COMPILE = os.environ.get("DIT_COMPILE", "1") == "1"   # torch.compile the transformer blocks
 DIT_COMPILE_MODE = os.environ.get("DIT_COMPILE_MODE", "default")   # default | reduce-overhead (CUDA graphs) | max-autotune-no-cudagraphs
 CKPT_DIR = PROJECT / "data" / "phase1_dataset"
@@ -136,6 +137,8 @@ class RamSplit:
                 while e < N:
                     Lm = max(float(olens[e]), 8.0)
                     allowed = int(min(budget_cap * bs, max(1, bs * (BUDGET_REF / Lm) ** 2)))   # floor 1: at L=512 a batch is bs/4 proteins
+                    if TOKEN_CAP > 0:   # trunk-activation law: samples x residues per step (with REPEAT_COPIES copies) must also fit
+                        allowed = max(1, min(allowed, int(TOKEN_CAP / (Lm * int(os.environ.get("REPEAT_COPIES", "1"))))))
                     if e - s + 1 > allowed: break
                     e += 1
                 plan.append(order[s:e]); s = e

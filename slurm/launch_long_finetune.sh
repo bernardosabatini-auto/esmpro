@@ -12,5 +12,6 @@ EXTRA="--h5-path $D/dataset_100k_esmc.h5 --extra-train-h5 $EXTRAS --val-h5 $D/da
   --sample-steps 25 --budget-cap ${BUDGET:-3} ${WARM:+--warm-start $WARM}"
 # TLATE=1 -> SimpleFold late-t resampling (logit-normal m 0.8 s 1.7, 2 % uniform)
 if [ -n "$TLATE" ]; then export T_LOGIT_M=0.8 T_LOGIT_S=1.7 T_UNIF=0.02; fi
+export TOKEN_CAP=${TOKEN_CAP:-32000}   # short buckets at R=8 otherwise blow the trunk-activation memory (cycle2 OOM at 143 GB)
 ESM_PROAE_MAX_LEN=512 REPEAT_COPIES=${R:-2} LABEL=$LABEL EXTRA="$EXTRA" SCRIPT="${SCRIPT:-gate10_pair_flow.py}" \
   sbatch --nodes=2 --mem=${MEM:-1400G} ${SBATCH_EXTRA:-} --export=ALL $R_/slurm/train_latent_flow_multinode.sbatch
