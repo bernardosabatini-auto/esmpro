@@ -32,3 +32,27 @@ Kernel table (unfused): matmuls ~400 ms of ~1050 ms GPU time; the compiled pair-
 ## Runs launched under the new code
 - `pf_459M_p128x8_rec_esmc_afdb` (job 48243251, 8 H200, budget 108) — the recycling main line, restarted from scratch (the unoptimised attempt was stopped after 2 epochs; its epoch-1 TM 0.186 vs 0.179 without recycling).
 - `pf_174M_p64x6_rec_esmc` (job 48243266, 4 RTX) — recycling twin of `pf_174M_p64x6_esmc` (0.719 selection / 0.732 held-out), the cheap A/B on the 80k set. GPU total 12 of the allowed 16.
+
+## Addendum 2026-09-26 — cracking the utilisation leaderboard (user: cluster metric 44 %, top users 45-55 %)
+
+**What the GPUs actually do inside a step** (DCGM on one node of the running 512 main line, 40 one-second samples per GPU): SM active 0.60-0.95 (mean ≈ 0.80), SM occupancy ≈ 0.33, tensor-core active ≈ 0.10, DRAM active ≈ 0.33, nvidia-smi "utilisation" 100 %. The kernels are memory-bound elementwise work in the pair track; tensor cores idle 90 % of the time. The dashboard's 44 % is therefore dominated by *allocated-but-idle* time, not by slow kernels: the per-epoch evaluation on rank 0 while seven GPUs wait (~3 % of a run), start-up caching, and above all the scoring / comparison / data-build jobs whose CPU phases (Foldseek, downloads) hold a GPU for hours.
+
+**Measured options (459M pair flow, one RTX, ~15k sample-residues per step):**
+| variant | step | peak GB | verdict |
+|---|---|---|---|
+| R = 4, pair checkpointing on (recipe) | 0.556 s | 45.9 | baseline |
+| R = 4, checkpointing off | 0.490 s | 100.7 | -12 % time for +55 GB: not worth it |
+| **R = 8, checkpointing on** | **0.484 s** | **45.2** | -13 % at the same memory; quality A/B running (`pf_174M_p64x6_esmc_r8_tlate`) |
+| R = 8, checkpointing off | 0.440 s | 76.7 | -21 %, 1.7x memory |
+| pad 32 instead of 8 | 0.625 s | 48.8 | more padding, slower |
+| CUDA graphs (`reduce-overhead`) | crash | | per-block graphs conflict with checkpointing; not pursued |
+| `max-autotune-no-cudagraphs` | 12 s | | recompiles for every bucket shape; unusable with variable lengths |
+| eager trunk (no compile) | 0.662 s | 55.6 | compile is worth 16 % |
+
+**Shipped:**
+1. **Distributed per-epoch evaluation** (`DIST_EVAL=1`, default in DDP): every rank samples and decodes its share of the evaluation proteins into a shared directory, rank 0 runs Foldseek once. Removes the seven-GPU idle window each epoch. Smoke-tested on 2 GPUs, identical metric format, coverage 100 %.
+2. **Chunked exhaustive Foldseek** (`FOLDSEEK_CHUNK=64`): only matched pairs are needed, but exhaustive search aligned every prediction against every reference (N^2). Chunks of 64 give N x 64 alignments with identical scores (verified: max difference 0.00 on 109 domains, 2.6x faster there; ~15x on the 1,000-protein long validation set, which had held a GPU for 3 hours while the CPU aligned a million pairs).
+3. Scoring jobs get 16 CPU threads for Foldseek.
+4. Knobs for `DIT_COMPILE_MODE` and `PAD_MULT` remain for future tests.
+
+**Recipe change pending the R = 8 A/B:** eight copies per protein with checkpointing (13 % faster per sample at equal memory), which also makes a 512-window budget of ~16 x 256^2 per H200 possible.
