@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-26 14:48 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-26 14:54 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -73,3 +73,4 @@ Updated 2026-09-26 14:48 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-26 15:30 — co-design model (gate20) passed its smoke test (masked-sequence CE + latent flow, ESMC on masked sequences, folding eval intact). Launched the 174M/80k prototype `cd_174M_p64x6_esmc` on 4 RTX; pair-free 512 run resubmitted on 4 RTX so both fit under the 16-GPU cap with the 840M main line.
 - 2026-09-26 16:00 — **generative benchmarks (`generative_benchmarks.md`):** apo/holo TM-ens 0.854, flexibility r 0.451/0.505 (SimpleFold-100M 0.852, 0.492/0.500; AlphaFlow 0.856, 0.455/0.527); fold-switch TM-ens 0.743, per-target flex 0.392 (SimpleFold-3B 0.734, 0.288). CAMEO22 0.781 vs ESMFold2-Fast 0.804. Coverage 100%. Next: stochastic sampler sweep.
 - 2026-09-26 17:20 — stochastic-sampler sweep: TM-ens and flexibility within +-0.01 of the ODE at tau 0.3-1.0; guidance weight is the diversity dial. R=8 quality run finished (scoring running). Pair-free run resubmitted with 720 GB host RAM (pending GPUs). Co-design prototype at epoch ~8.
+- 2026-09-26 18:00 — R=8 confirmed (repeated_batching.md addendum): held-out 0.758 vs 0.747 (R=4), CASP 0.700 vs 0.695, 28% less GPU time per sample; recipe. Co-design prototype folding 0.557 at epoch 6 (twin 0.643), rising; its 3-mode evaluation queued. Pair-free 512 run started (720 GB host RAM).

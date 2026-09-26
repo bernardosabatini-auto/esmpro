@@ -37,3 +37,15 @@ Independent sets (`best_pf_174M_p64x6_esmc_r4.pt`, w = 2, K = 8, coverage 100 %)
 
 ## What it changed
 The main-line recipe is `REPEAT_COPIES=4`, budget-filling batches, fused triangle projections, compiled DiT blocks. `best_pf_174M_p64x6_esmc_r4.pt` replaces `pf_174M_p64x6_esmc` as the 174M reference for further 80k ablations (held-out 0.743).
+
+## Addendum 2026-09-26 — eight copies (`pf_174M_p64x6_esmc_r8_tlate`, job 48731107, 4 RTX, budget 14, late-t; scoring 48795868)
+Selection curve: ahead of the R = 4 late-t run at every epoch (0.724 vs 0.708 at epoch 24), best 0.728 at epoch 38, early-stopped at 54; 375 s/epoch = 2x the samples of the R = 4 run's 261 s, i.e. 28 % less GPU time per sample.
+
+| set | R = 8 | R = 4 (late-t reference) |
+|---|---|---|
+| held-out (n=100) | **0.758 / 89 % / 6.09 A**, bo8 0.784 | 0.747 / 89 % / 6.23 A |
+| no-neighbour < 0.6 (n=266) | 0.561 / 65 % | 0.558 / 62 % |
+| no-neighbour < 0.5 (n=93) | 0.505 / 48 % | 0.506 / 42 % |
+| CASP15/16 (n=80) | **0.700 / 74 % / 7.16 A** | 0.695 / 72 % / 7.17 A |
+
+Equal or better on every set at lower cost per sample. **R = 8 is the recipe** (the 840M main line runs with it); memory is governed by the trunk activations of the copies, hence the per-step residue cap (`TOKEN_CAP`). Best 174M weights are now `best_pf_174M_p64x6_esmc_r8_tlate.pt` (held-out 0.758).
