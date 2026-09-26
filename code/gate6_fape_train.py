@@ -458,10 +458,34 @@ def _write_pseudo_backbone_pdb(ca, path):
         f.write("END\n")
 
 
+FOLDSEEK_CHUNK = int(os.environ.get("FOLDSEEK_CHUNK", "64"))
+
 def _foldseek_tm(pred_dir, gt_dir, tmp):
     """Matched-pair TM via TMalign. --exhaustive-search is REQUIRED: without it
     the 3Di k-mer prefilter silently drops dissimilar structures, which
-    previously produced a TM column that was 85-90% imputed zeros."""
+    previously produced a TM column that was 85-90% imputed zeros.
+    Only the diagonal (pred_i vs gt_i) is used, but exhaustive search aligns
+    every query against every target: N^2 TM-aligns. For N > FOLDSEEK_CHUNK the
+    structures are split into chunks of that size (same names in both halves), so the
+    cost is N * chunk instead of N^2 (1000 proteins: 64k alignments instead of 1M).
+    Every matched pair is still aligned exhaustively; results are identical."""
+    import subprocess, shutil as _sh
+    names = sorted(f[:-4] for f in os.listdir(pred_dir) if f.endswith(".pdb") and os.path.exists(os.path.join(gt_dir, f)))
+    if len(names) <= FOLDSEEK_CHUNK:
+        return _foldseek_tm_dir(pred_dir, gt_dir, tmp)
+    best = {}
+    for c, s in enumerate(range(0, len(names), FOLDSEEK_CHUNK)):
+        cp, cg = os.path.join(tmp, f"c{c}", "pr"), os.path.join(tmp, f"c{c}", "gt")
+        os.makedirs(cp, exist_ok=True); os.makedirs(cg, exist_ok=True)
+        for nm in names[s:s + FOLDSEEK_CHUNK]:
+            os.symlink(os.path.abspath(os.path.join(pred_dir, nm + ".pdb")), os.path.join(cp, nm + ".pdb"))
+            os.symlink(os.path.abspath(os.path.join(gt_dir, nm + ".pdb")), os.path.join(cg, nm + ".pdb"))
+        best.update(_foldseek_tm_dir(cp, cg, os.path.join(tmp, f"c{c}", "tmp")))
+        _sh.rmtree(os.path.join(tmp, f"c{c}"), ignore_errors=True)
+    return best
+
+
+def _foldseek_tm_dir(pred_dir, gt_dir, tmp):
     import subprocess
     os.makedirs(os.path.join(tmp, "fs"), exist_ok=True)
     out = os.path.join(tmp, "aln.tsv")
