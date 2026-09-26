@@ -38,7 +38,8 @@ relative than on the plain held-out slice.
    inference gets ~+0.02 for 8x compute, no retraining of the generator.
 
 ## Phase B (1-2 weeks, 8 H200s for one run at a time)
-*2026-09-24: experimental PDB targets built (pdb_build.md) and tested by fine-tuning (pdb_finetune.md): null. Recycling (structural self-conditioning, gate16) running at full scale.*
+*2026-09-24: experimental PDB targets built (pdb_build.md) and tested by fine-tuning (pdb_finetune.md): null. Recycling retired (recycling.md).*
+*2026-09-26: 512-window data built (long_data_build.md); recipe = repeated batching + late-t + fused pair + distributed eval (efficiency.md, repeated_batching.md, late_t_resampling.md); from-scratch 512 run is the best model on every set (pf_459M_p128x8_long512_scratch.md: held-out 0.785, long CASP 0.763). Next: 840M trunk on ~1.3M proteins.*
 5. **Data at the million scale, cleanly.** Extend to the Foldseek AFDB
    cluster representatives (~2.3M at <= 512 residues, ~4x the current set),
    built with `gate8` and clustered against the new held-out split. ESMC
