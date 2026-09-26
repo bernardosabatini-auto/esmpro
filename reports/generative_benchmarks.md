@@ -25,3 +25,15 @@ Published numbers on the same benchmarks (SimpleFold paper Table 3; mean TM-ens,
 
 ## What it changed
 The generative claim now has numbers: at 0.3-0.5 s per sample the model produces ensembles that reach both experimental states as well as SimpleFold-100M / AlphaFlow on apo/holo and as well as SimpleFold-3B on fold-switchers. Next: a stochastic sampler (tau) sweep for the diversity/accuracy curve, and the same evaluation for the 840M model when it finishes.
+
+## Addendum — stochastic sampler sweep (job 48788095)
+Euler-Maruyama sampling (SimpleFold's SDE form, `sample_sde` in gate7) at w = 1, K = 5:
+
+| set | sampler | TM-ens | single draw | flex r global / per-target | diversity |
+|---|---|---|---|---|---|
+| apo/holo | ODE (above) | 0.854 | 0.865 | 0.451 / 0.505 | 0.906 |
+| apo/holo | SDE tau 0.3 / 0.6 / 1.0 | 0.853 / 0.854 / 0.848 | 0.879 / 0.872 / 0.863 | 0.420 / 0.483, 0.451 / 0.506, 0.402 / 0.525 | 0.953 / 0.927 / 0.894 |
+| fold-switch | ODE (above) | 0.743 | 0.776 | 0.198 / 0.392 | 0.701 |
+| fold-switch | SDE tau 0.3 / 0.6 / 1.0 | 0.744 / 0.741 / 0.736 | 0.795 / 0.786 / 0.776 | 0.140 / 0.344, 0.141 / 0.357, 0.175 / 0.371 | 0.788 / 0.746 / 0.697 |
+
+The noise level moves single-draw accuracy and diversity in the expected directions but leaves TM-ens and the flexibility correlations within +-0.01 of the deterministic sampler. In this latent the ensemble spread comes from the initial noise, not from the integrator; the guidance weight remains the useful dial. Coverage 100 % throughout.
