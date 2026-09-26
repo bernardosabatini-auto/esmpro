@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-26 13:04 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-26 13:11 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -69,3 +69,4 @@ Updated 2026-09-26 13:04 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-26 12:40 — extra short set guarded: 8,141 proteins with a validation homolog (>50% id) or a CASP near-identical (>=90%) removed -> **618,658** kept. Training pool now 1.09M short + 173k long = 1.26M proteins. **840M main line `pf_840M_p128x8_long512_1p3M` queued** (d1280 x 28 x 20 heads + pair 128x8, R=8, budget 12, TOKEN_CAP 32k, lr 3e-4, 30 epochs, late-t, selection on long val); scoring gated on success. Runs when the GPU cap allows (cycle2 fine-tune holds 8 H200s).
 - 2026-09-26 13:20 — cycle2 fine-tune cancelled after epoch 1 (long-val 0.602, 4,576 s/epoch at R=8 = 2x the samples per epoch; 8 epochs would have blocked the H200s for 10 h for a +0.005-0.01 fine-tune). The 840M main line on 1.26M proteins starts now (8 H200; 12 of 16 GPUs in use with the R=8 RTX check).
 - 2026-09-26 14:30 — user approved the four novelty items. Done: inference-cost table (`inference_cost.md`: 0.32-0.48 s/protein vs ESMFold2-Fast 0.84-3.9 s, same GPU). Launched: pair-free 459M latent DiT at 512 on 6 RTX (`lf_459M_nopair_long512`, same data/recipe as the best pair run); apo/holo + fold-switch + CAMEO22 benchmark build (gate22) with the ensemble evaluation (gate23) ready to run. Next: co-design model (gate20).
+- 2026-09-26 15:00 — generative benchmarks built (gate22): apo/holo 86/90 pairs, fold-switch (CoDNaS) 68/77, CAMEO22 169/183 targets, with ESMC embeddings. Ensemble evaluation (gate23: TM-ens, flexibility correlation, diversity at w=1,2, K=5) and CAMEO22 scoring running; ESMFold2-Fast on CAMEO22 running. Co-design smoke test rerunning after a val-loop fix. Pair-free 512 run pending GPUs.
