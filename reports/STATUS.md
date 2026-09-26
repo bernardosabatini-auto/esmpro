@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-25 21:22 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-25 21:43 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -60,3 +60,4 @@ Updated 2026-09-25 21:22 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-25 06:00 — late-t resampling reported (`late_t_resampling.md`): +0.004-0.01 on every set, in the recipe. 512 fine-tune done (best long-val 0.587 at epoch 12; scoring running). From-scratch 512 main line `pf_459M_p128x8_long512_scratch` running on the 8 H200s.
 - 2026-09-25 09:30 — `pf_459M_p128x8_long512` scored and reported: long val 0.572 / 63% (before 0.560), long CASP 0.736 / 86%, CASP<=512 0.713; short sets best to date (held-out 0.770 / 89%, no-neighbour 0.582 / 0.524, CASP 0.710). Best weights: `last_pf_459M_p128x8_long512.ckpt`. From-scratch 512 main line at epoch 3 (0.566), ~48 min/epoch.
 - 2026-09-25 21:25 — from-scratch 512 main line (resumed after an OOM at epoch 5, budget 32) at epoch 17/40: long-val 0.595 / 66%, already above the fine-tune's 0.587 plateau; ~50 min/epoch, ends ~2026-09-26 16:00. ESMFold2-Fast queued on the long CASP domains and 200 long-val proteins for the external comparison.
+- 2026-09-25 22:20 — **ESMFold2-Fast on long proteins** (same inputs/pipeline): CASP<=512 (109) 0.751 / 82% / 8.22 A; long CASP 257-512 (29) 0.793 / 93% / 9.31 A; long val first 200 0.644 / 70% / 16.7 A. Ours (512 fine-tune): 0.713 / 79%, 0.736 / 86%, ~0.57 / 63%. The gap is 0.04-0.08 on long proteins vs 0.03 on short: length is where we lag most. From-scratch 512 run at epoch 18 (0.595) is the current attempt to close it.
