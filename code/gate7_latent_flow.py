@@ -385,6 +385,30 @@ def sample(net, esm, mask, n_steps=50, cfg_w=1.0, gen=None, project=True):
     return x * mask.unsqueeze(-1)
 
 
+
+@torch.no_grad()
+def sample_sde(net, esm, mask, n_steps=50, cfg_w=1.0, gen=None, project=True, tau=0.3, eta=0.01, pair_fn=None):
+    """Euler-Maruyama sampler (SimpleFold eq. 2.5): dx = v dt + 1/2 w(t) s dt + sqrt(tau w(t)) dW with the score
+    s = (t v - x)/(1 - t) and w(t) = 2(1 - t)/(t + eta); tau = 0 recovers the ODE. Noise switched off for t >= 0.99.
+    pair_fn: optional callable returning a precomputed pair tensor to pass as pair= (gate10 models)."""
+    B, L = mask.shape; dev = esm.device
+    x = torch.randn(B, L, D_LAT, device=dev, generator=gen); x_sc = None
+    ts = torch.linspace(1e-4, 1, n_steps + 1, device=dev); ones = torch.ones(B, dtype=torch.bool, device=dev)
+    kw = {"pair": pair_fn()} if pair_fn is not None else {}
+    for i in range(n_steps):
+        t = ts[i].expand(B); dt = ts[i + 1] - ts[i]; ti = ts[i]
+        v = net(x, t, esm, mask, None, x_sc, **kw)
+        if cfg_w != 1.0:
+            v_u = net(x, t, esm, mask, ones, x_sc, **kw); v = v_u + cfg_w * (v - v_u)
+        if getattr(getattr(net, "module", net), "self_cond", False): x_sc = x + (1 - ti) * v
+        if tau > 0 and ti < 0.99:
+            w_t = 2 * (1 - ti) / (ti + eta); score = (ti * v - x) / (1 - ti)
+            x = x + (v + 0.5 * w_t * score) * dt + torch.sqrt(tau * w_t * dt) * torch.randn(x.shape, device=dev, generator=gen)
+        else:
+            x = x + v * dt
+    if project: x = F.layer_norm(x, (D_LAT,))
+    return x * mask.unsqueeze(-1)
+
 # ---------------------------------------------------------------------------
 # Structure evaluation through the frozen decoder
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ ROOT = os.environ["ESM_PROAE_ROOT"]; sys.path.insert(0, ROOT + "/code"); os.chdi
 import gate7_latent_flow as G
 from gate6_fape_train import PROJECT, _write_pseudo_backbone_pdb, _foldseek_tm
 ap = argparse.ArgumentParser(); ap.add_argument("--ckpt", required=True); ap.add_argument("--set", default="apo"); ap.add_argument("--k", type=int, default=5)
-ap.add_argument("--cfg-w", default="1,2"); ap.add_argument("--steps", type=int, default=50); ap.add_argument("--bs", type=int, default=8); ap.add_argument("--n", type=int, default=0)
+ap.add_argument("--cfg-w", default="1,2"); ap.add_argument("--steps", type=int, default=50); ap.add_argument("--bs", type=int, default=8); ap.add_argument("--n", type=int, default=0); ap.add_argument("--tau", type=float, default=0.0, help=">0: Euler-Maruyama stochastic sampler")
 a = ap.parse_args(); dev = torch.device("cuda"); D = PROJECT / "data/phase1_dataset"
 
 def kabsch_tm(P, Q, mask):
@@ -69,7 +69,12 @@ for w in [float(x) for x in a.cfg_w.split(",")]:
             esm, mask = esm.to(dev), mask.to(dev); samples = []
             for k in range(a.k):
                 with torch.amp.autocast("cuda", dtype=torch.bfloat16):
-                    z = G.sample(net, esm, mask, a.steps, w, gen); ca = dec(z.float(), mask).float()
+                    if a.tau > 0:
+                        raw = getattr(net, "module", net); pf = (lambda: raw.compute_pair(esm, mask)) if hasattr(raw, "compute_pair") else None
+                        z = G.sample_sde(net, esm, mask, a.steps, w, gen, tau=a.tau, pair_fn=pf)
+                    else:
+                        z = G.sample(net, esm, mask, a.steps, w, gen)
+                    ca = dec(z.float(), mask).float()
                 samples.append(ca.cpu())
                 for i, n in enumerate(nb):
                     L = int(mask[i].sum()); _write_pseudo_backbone_pdb(ca[i, :L].cpu().numpy(), f"{work}/pr{k}/{n}.pdb")
@@ -111,5 +116,5 @@ for w in [float(x) for x in a.cfg_w.split(",")]:
                     "flex_r_global": float(np.corrcoef(np.concatenate([per[n]["rmsf"] for n in names if "rmsf" in per[n]]), np.concatenate([per[n]["dev_ab"] for n in names if "rmsf" in per[n]]))[0, 1]),
                     "coverage_B": float(np.mean([n in tmB[0] for n in names]))})
     print(f"w={w}: " + "  ".join(f"{k} {v:.3f}" if isinstance(v, float) else f"{k} {v}" for k, v in out.items()) + f"  [{time.perf_counter()-t0:.0f}s]", flush=True)
-    results[str(w)] = out
-json.dump({"ckpt": a.ckpt, "set": a.set, "results": results}, open(PROJECT / "notes" / f"gate23_{a.set}_{a.ckpt.replace('.ckpt','').replace('.pt','')}.json", "w"), indent=1)
+    results[f"w{w}_tau{a.tau}"] = out
+json.dump({"ckpt": a.ckpt, "set": a.set, "results": results}, open(PROJECT / "notes" / f"gate23_{a.set}_{a.ckpt.replace('.ckpt','').replace('.pt','')}_tau{a.tau}.json", "w"), indent=1)
