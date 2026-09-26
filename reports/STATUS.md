@@ -1,6 +1,6 @@
 # Live status
 
-Updated 2026-09-26 08:13 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
+Updated 2026-09-26 08:55 (cluster time). Latest per-epoch evaluation of each job; these are selection-set numbers (100 or 200 val proteins), see README for the held-out caveat. Reference: inherited checkpoint 0.427 / 32% / 11.56 A.
 
 | label | kind | job | status | epochs | TM | TM>0.5 | RMSD | coverage |
 |---|---|---|---|---|---|---|---|---|
@@ -62,3 +62,4 @@ Updated 2026-09-26 08:13 (cluster time). Latest per-epoch evaluation of each job
 - 2026-09-25 21:25 — from-scratch 512 main line (resumed after an OOM at epoch 5, budget 32) at epoch 17/40: long-val 0.595 / 66%, already above the fine-tune's 0.587 plateau; ~50 min/epoch, ends ~2026-09-26 16:00. ESMFold2-Fast queued on the long CASP domains and 200 long-val proteins for the external comparison.
 - 2026-09-25 22:20 — **ESMFold2-Fast on long proteins** (same inputs/pipeline): CASP<=512 (109) 0.751 / 82% / 8.22 A; long CASP 257-512 (29) 0.793 / 93% / 9.31 A; long val first 200 0.644 / 70% / 16.7 A. Ours (512 fine-tune): 0.713 / 79%, 0.736 / 86%, ~0.57 / 63%. The gap is 0.04-0.08 on long proteins vs 0.03 on short: length is where we lag most. From-scratch 512 run at epoch 18 (0.595) is the current attempt to close it.
 - 2026-09-26 08:40 — utilisation pass (efficiency.md addendum): DCGM shows SM active ~0.80 inside steps, tensor cores 10%; the 44% dashboard figure is allocated-idle time. Shipped distributed evaluation, chunked Foldseek (N^2 -> N x 64 alignments, identical scores), 16 Foldseek threads. R=8 copies is 13% faster at equal memory; quality A/B launched on 4 RTX. From-scratch 512 run at epoch 31/40 (long val ~0.60).
+- 2026-09-26 09:20 — from-scratch 512 run `pf_459M_p128x8_long512_scratch` early-stopped at epoch 30, best long-val 0.605 at epoch 22 (fine-tune: 0.587); scoring running. H200 capacity profile at 512/R=8: 459M+pair128x8 0.79 s/step (21.9k residues, 87 GB at budget 16); 840M trunk 0.79 s (15.1k, 84 GB at budget 12); pair 128x12 0.68 s (60 GB); pair 192x8 1.06 s. To keep the H200s busy while 627k extra short AFDB proteins build (4 RTX shards), a second-cycle fine-tune of the from-scratch model at R=8 launched (`pf_459M_p128x8_long512_cycle2`); the 840M run on ~1.3M proteins follows the build.
