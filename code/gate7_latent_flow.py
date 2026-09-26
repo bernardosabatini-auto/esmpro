@@ -32,8 +32,10 @@ from gate6_corrected_eval import kabsch_rmsd
 D_LAT, D_ESM = 8, 1280
 MAX_LEN = int(os.environ.get("ESM_PROAE_MAX_LEN", "256"))   # residue window; 512 for the long-protein stage
 BUDGET_REF = 256                                              # the residue budget is always bs x 256^2, whatever the window
-PAD8 = os.environ.get("PAD8", "1") == "1"                 # pad bucket length to a multiple of 8
+PAD8 = os.environ.get("PAD8", "1") == "1"                 # pad bucket length to a multiple of PAD_MULT
+PAD_MULT = int(os.environ.get("PAD_MULT", "8"))            # coarser (32) -> fewer distinct shapes for CUDA graphs
 DIT_COMPILE = os.environ.get("DIT_COMPILE", "1") == "1"   # torch.compile the transformer blocks
+DIT_COMPILE_MODE = os.environ.get("DIT_COMPILE_MODE", "default")   # default | reduce-overhead (CUDA graphs) | max-autotune-no-cudagraphs
 CKPT_DIR = PROJECT / "data" / "phase1_dataset"
 
 
@@ -143,7 +145,7 @@ class RamSplit:
     def batch_from(self, i, bucket=True):
         m = self.mask[i]
         Lmax = max(int(m.sum(1).max()), 8) if bucket else MAX_LEN
-        if PAD8: Lmax = min(MAX_LEN, (Lmax + 7) // 8 * 8)    # 16-byte-aligned attention bias -> fused SDPA kernel instead of the math path
+        if PAD8: Lmax = min(MAX_LEN, (Lmax + PAD_MULT - 1) // PAD_MULT * PAD_MULT)    # 16-byte-aligned attention bias -> fused SDPA kernel instead of the math path
         c = self.cond(i)
         if not self.online: c = c[:, :Lmax]
         return c, self.z[i][:, :Lmax], m[:, :Lmax], (self.ca[i][:, :Lmax] if self.ca is not None else None), i
@@ -286,7 +288,7 @@ class LatentFlowNet(nn.Module):
         self.t_mlp = nn.Sequential(nn.Linear(d_model, d_model), nn.SiLU(), nn.Linear(d_model, d_model))
         self.blocks = nn.ModuleList([DiTBlock(d_model, n_heads, rel_pos, dropout) for _ in range(n_layers)])
         if DIT_COMPILE and torch.cuda.is_available():   # fuse adaLN/gating/residual chains; dynamic shapes for bucketed batches
-            self.blocks = nn.ModuleList([torch.compile(b, dynamic=True) for b in self.blocks])
+            self.blocks = nn.ModuleList([torch.compile(b, dynamic=(DIT_COMPILE_MODE == 'default'), mode=DIT_COMPILE_MODE) for b in self.blocks])
         self.out_norm = nn.LayerNorm(d_model, elementwise_affine=False)
         self.out_ada = nn.Sequential(nn.SiLU(), nn.Linear(d_model, 2 * d_model))
         self.out_proj = nn.Linear(d_model, D_LAT)
@@ -433,6 +435,67 @@ def load_decoder(device, n_steps=3):
     for p in ae.parameters():
         p.requires_grad = False
     return DifferentiableDecoder(ae, n_steps=n_steps).to(device)
+
+
+DIST_EVAL = os.environ.get("DIST_EVAL", "1") == "1"   # DDP: every rank samples/decodes its share of the eval proteins
+
+@torch.no_grad()
+def evaluate_structures_dist(net, dec, val, device, rank, world, shared_dir, n=100, bs=20, n_steps=50, cfg_w=1.0, seed=0, embed=None):
+    """Distributed twin of evaluate_structures (n_samples = 1): rank r handles proteins r, r+world, ...;
+    Ca traces go to a shared directory; rank 0 runs Foldseek over all of them and returns the metrics
+    dict, other ranks return None. Idle time of the non-main GPUs during evaluation drops from the
+    whole evaluation to the Foldseek call."""
+    import torch.distributed as dist
+    net.eval(); n = min(n, len(val))
+    gt_d, pr_d = os.path.join(shared_dir, "gt"), os.path.join(shared_dir, "pr")
+    if rank == 0:
+        shutil.rmtree(shared_dir, ignore_errors=True); os.makedirs(gt_d); os.makedirs(pr_d)
+    dist.barrier()
+    gen = torch.Generator(device=device.type).manual_seed(seed + rank)
+    mine = list(range(rank, n, world)); loc = {}; n_bad = 0
+    for s in range(0, len(mine), bs):
+        idx = torch.tensor(mine[s:s+bs])
+        c = val.cond(idx)
+        with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
+            esm = embed(c) if embed is not None else c.to(device)
+        mask = val.mask[idx].to(device); ca = val.ca[idx]; z_true = val.z[idx].to(device)
+        with torch.amp.autocast("cuda", dtype=torch.bfloat16, enabled=(device.type == "cuda")):
+            z = sample(net, esm, mask, n_steps, cfg_w, gen)
+            pred = dec(z.float(), mask).float()
+        m = mask.unsqueeze(-1).float()
+        zerr = ((((z.float() - z_true) ** 2) * m).sum((1, 2)) / (m.sum((1, 2)) * D_LAT)).cpu().tolist()
+        rm = kabsch_rmsd(pred.cpu(), ca, mask.cpu())
+        bad = (~torch.isfinite(pred).all(-1).all(-1)) | (~torch.isfinite(z).all(-1).all(-1)); n_bad += int(bad.sum())
+        predc = pred.cpu()
+        for b, i in enumerate(idx.tolist()):
+            L_ = int(mask[b].sum()); nm = f"p{i:05d}"
+            fp = fape_loss(predc[b:b+1], ca[b:b+1], mask[b:b+1].cpu(), fix_ends=True).item()
+            loc[nm] = {"rmsd": rm[b], "zerr": zerr[b], "fape": fp}
+            _write_pseudo_backbone_pdb(ca[b, :L_].numpy(), os.path.join(gt_d, f"{nm}.pdb"))
+            _write_pseudo_backbone_pdb(predc[b, :L_].numpy(), os.path.join(pr_d, f"{nm}.pdb"))
+    json.dump({"loc": loc, "n_bad": n_bad}, open(os.path.join(shared_dir, f"metrics_r{rank}.json"), "w"))
+    dist.barrier()
+    if rank != 0: return None
+    try:
+        allm, nb_tot = {}, 0
+        for r in range(world):
+            d = json.load(open(os.path.join(shared_dir, f"metrics_r{r}.json"))); allm.update(d["loc"]); nb_tot += d["n_bad"]
+        names = [f"p{i:05d}" for i in range(n)]
+        tms = _foldseek_tm(pr_d, gt_d, os.path.join(shared_dir, "tm"))
+        meas = [tms[x] for x in names if x in tms]
+        out = {"tm": float(np.mean(meas)) if meas else float("nan"),
+               "tm_frac": float(np.mean([tms.get(x, 0.0) > 0.5 for x in names])), "tm_best_of_k": float(np.mean(meas)) if meas else float("nan"), "k": 1,
+               "tm_per_protein": [tms.get(x) for x in names], "coverage": len(meas) / n,
+               "rmsd": float(np.nanmean([allm[x]["rmsd"] for x in names if x in allm])),
+               "fape": float(np.nanmean([allm[x]["fape"] for x in names if x in allm])),
+               "z_mse": float(np.nanmean([allm[x]["zerr"] for x in names if x in allm])), "cfg_w": cfg_w, "n_nonfinite": nb_tot}
+        if nb_tot: print(f"    [eval: {nb_tot} proteins with non-finite latent/coords]", flush=True)
+        return out
+    except Exception as e:
+        print(f"    [distributed structure eval failed: {e}]", flush=True)
+        return {"tm": float("nan"), "tm_frac": float("nan"), "coverage": 0.0, "cfg_w": cfg_w}
+    finally:
+        shutil.rmtree(shared_dir, ignore_errors=True)
 
 
 @torch.no_grad()
@@ -592,7 +655,8 @@ def main(a):
                   for f in a.extra_train_h5.split(",") if f.strip()]
         train = ConcatSplit([train] + extras)
         say(f"  extra training files: {a.extra_train_h5} -> train {len(train)}/rank")
-    val = RamSplit("val", a.n_val, a.workers, keep_ca=True, online=online, h5_path=(a.val_h5 or h5p)) if is_main else None
+    dist_eval = ddp and DIST_EVAL and not a.smoke
+    val = RamSplit("val", a.n_val, a.workers, keep_ca=True, online=online, h5_path=(a.val_h5 or h5p)) if (is_main or dist_eval) else None
     if a.val_h5: say(f"  validation split from {a.val_h5}")
     say(f"  train {len(train)}/rank  val {len(val) if val else 0}  batch {a.batch_size}")
     torch.manual_seed(1000 + rank)   # decorrelate flow noise / t across ranks (weights already synced)
@@ -607,7 +671,8 @@ def main(a):
         pr = (step - a.warmup) / max(total - a.warmup, 1)
         return 0.5 * (1 + math.cos(math.pi * min(pr, 1.0)))
     sched = torch.optim.lr_scheduler.LambdaLR(opt, lr_at)
-    dec = None if (a.smoke or not is_main) else load_decoder(device)
+    dec = None if (a.smoke or not (is_main or dist_eval)) else load_decoder(device)
+    if dist_eval: say(f"  distributed evaluation over {world} ranks")
     cfg_ws = [float(x) for x in a.cfg_w.split(",")]
 
     start, best_tm, best_ep, history, step = 0, -1.0, 0, [], 0
@@ -668,6 +733,10 @@ def main(a):
         train_loss = tl / max(nb, 1)
 
         if not is_main:
+            if dist_eval and (epoch + 1) % a.eval_every == 0:
+                for w in cfg_ws:
+                    evaluate_structures_dist(ema, dec, val, device, rank, world, str(PROJECT / "tmp_eval" / f"{a.label}_e{epoch+1}_w{w}"),
+                                             n=a.eval_n, n_steps=a.sample_steps, cfg_w=w, embed=embed)
             # workers: only need to know whether rank 0 decided to stop
             stop = torch.zeros(1, device=device); dist.broadcast(stop, 0)
             if stop.item() > 0: break
@@ -698,8 +767,12 @@ def main(a):
         if dec is not None and (epoch + 1) % a.eval_every == 0:
             for w in cfg_ws:
                 t1 = time.perf_counter()
-                r = evaluate_structures(ema, dec, val, device, n=a.eval_n, n_steps=a.sample_steps,
-                                        cfg_w=w, n_samples=1, embed=embed)
+                if dist_eval:
+                    r = evaluate_structures_dist(ema, dec, val, device, rank, world, str(PROJECT / "tmp_eval" / f"{a.label}_e{epoch+1}_w{w}"),
+                                                 n=a.eval_n, n_steps=a.sample_steps, cfg_w=w, embed=embed)
+                else:
+                    r = evaluate_structures(ema, dec, val, device, n=a.eval_n, n_steps=a.sample_steps,
+                                            cfg_w=w, n_samples=1, embed=embed)
                 print(f"        w={w:.1f}: TM {r['tm']:.3f}  TM>0.5 {r['tm_frac']:.2f}  "
                       f"RMSD {r.get('rmsd', float('nan')):.2f}  Ca-FAPE {r.get('fape', float('nan')):.3f}  "
                       f"z_mse {r.get('z_mse', float('nan')):.3f}  coverage {r['coverage']:.2f}  "

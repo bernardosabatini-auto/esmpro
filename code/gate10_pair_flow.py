@@ -227,7 +227,7 @@ class PairFlowNet(nn.Module):
         self.n_heads = n_heads
         self.blocks = nn.ModuleList([PairDiTBlock(d_model, n_heads, rel_pos, dropout, d_pair) for _ in range(n_layers)])
         if G7.DIT_COMPILE and torch.cuda.is_available():
-            self.blocks = nn.ModuleList([torch.compile(b, dynamic=True) for b in self.blocks])
+            self.blocks = nn.ModuleList([torch.compile(b, dynamic=(G7.DIT_COMPILE_MODE == 'default'), mode=G7.DIT_COMPILE_MODE) for b in self.blocks])
         self.out_norm = nn.LayerNorm(d_model, elementwise_affine=False)
         self.out_ada = nn.Sequential(nn.SiLU(), nn.Linear(d_model, 2 * d_model))
         self.out_proj = nn.Linear(d_model, D_LAT)

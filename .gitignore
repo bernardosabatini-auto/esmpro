@@ -14,3 +14,4 @@ __pycache__/
 *.npz
 *.pdb.gz
 structures/
+tmp_eval/
