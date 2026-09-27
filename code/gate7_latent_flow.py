@@ -612,6 +612,7 @@ def parse_args():
     p.add_argument("--batch-size", type=int, default=96)
     p.add_argument("--lr", type=float, default=3e-4); p.add_argument("--warmup", type=int, default=1000)
     p.add_argument("--epochs", type=int, default=100); p.add_argument("--patience", type=int, default=10)
+    p.add_argument("--sched-epochs", type=int, default=0, help="cosine horizon in epochs (default: --epochs); set larger to end the run before the cosine reaches zero")
     p.add_argument("--p-drop", type=float, default=0.1, help="condition dropout for CFG")
     p.add_argument("--ema", type=float, default=0.999)
     p.add_argument("--eval-every", type=int, default=2); p.add_argument("--eval-n", type=int, default=100)
@@ -708,7 +709,17 @@ def main(a):
     if embed is not None and embed.layer_mix and a.esm_kind == "esm2":   # 34 scalars: no decay, 20x lr so the mix can move
         groups.append({"params": [embed.mix_logits], "lr": a.lr * 20, "weight_decay": 0.0})
     opt = torch.optim.AdamW(groups, lr=a.lr, weight_decay=0.01, betas=(0.9, 0.95), fused=(device.type == "cuda"))
-    steps_per_epoch = math.ceil(len(train) / a.batch_size); total = steps_per_epoch * a.epochs
+    # steps/epoch must come from the REAL budget-batched plan: with residue budgeting and
+    # repeated batching the nominal len(train)/batch_size is off by 2x or more, which silently
+    # made the cosine finish long before (or after) --epochs. See CLAUDE.md bug 5.
+    _probe = train.batch_plan(a.batch_size, True, torch.Generator().manual_seed(12345), budget_cap=a.budget_cap)
+    steps_per_epoch = max(1, len(_probe))
+    if ddp:
+        _t = torch.tensor([steps_per_epoch], device=device); dist.all_reduce(_t, op=dist.ReduceOp.MIN)
+        steps_per_epoch = int(_t.item())
+    sched_epochs = a.sched_epochs if a.sched_epochs > 0 else a.epochs
+    total = steps_per_epoch * sched_epochs
+    say(f"  lr schedule: {steps_per_epoch} steps/epoch (measured), cosine over {sched_epochs} epochs = {total} steps, warmup {a.warmup}")
     def lr_at(step):
         if step < a.warmup: return step / max(a.warmup, 1)
         pr = (step - a.warmup) / max(total - a.warmup, 1)

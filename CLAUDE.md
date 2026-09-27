@@ -196,6 +196,23 @@ overrides `G7.fm_loss` must expose a module-level `REPEAT_COPIES`. More
 generally: when a knob is passed through the environment, print what the code
 consumed, not what was set.
 
+### Bug 5 — the cosine schedule was sized from a batch size nobody uses
+`steps_per_epoch` was `len(train) / --batch-size`, but every current run uses
+residue-budget batching and repeated copies, so the real step count is off by
+2x or more, in either direction. One pair-free arm ran its learning rate to
+zero at epoch 15 of a nominal 30 and sat flat for six more epochs; its paired
+twin, with a different nominal batch size, was still at 1.3e-4 at epoch 22
+because its cosine was sized for 33.6 epochs. Two arms of the same ablation
+therefore had different schedules, which is exactly the variable the ablation
+was meant to hold fixed.
+
+**Guard, already wired:** `steps_per_epoch` is measured from a real
+`batch_plan` probe (min across ranks under DDP) and the trainer prints
+`lr schedule: N steps/epoch (measured), cosine over M epochs = T steps`.
+`--sched-epochs` sets the cosine horizon independently of `--epochs` when a
+run should stop before the schedule reaches zero. Read that line in the log
+before trusting any comparison between two runs.
+
 ### Also
 **3Di identity is useless below about TM 0.4.** Unrelated real proteins score
 ~0.142, so the 0.146-0.167 range observed across all models was entirely floor.
