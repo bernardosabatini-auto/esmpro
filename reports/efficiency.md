@@ -56,3 +56,16 @@ Kernel table (unfused): matmuls ~400 ms of ~1050 ms GPU time; the compiled pair-
 4. Knobs for `DIT_COMPILE_MODE` and `PAD_MULT` remain for future tests.
 
 **Recipe change pending the R = 8 A/B:** eight copies per protein with checkpointing (13 % faster per sample at equal memory), which also makes a 512-window budget of ~16 x 256^2 per H200 possible.
+
+## Addendum — what the pair track costs (job 48844654, one RTX Pro 6000)
+
+Both configurations timed on the same GPU, the same long-protein shard, the same residue budget and the same repeated batching (R = 4), so nothing but the pair track differs. `code/step_profile.py --no-pair` builds the plain latent DiT instead of the pair-flow network.
+
+| | params | forward | backward | step | peak GPU | achieved TFLOPS |
+|---|---|---|---|---|---|---|
+| pair 128x8, fused, checkpointed | 464M | 0.273 s | 0.597 s | **0.899 s** | 49.5 GB | 13 |
+| pair-free latent DiT | 461M | 0.097 s | 0.131 s | **0.256 s** | 31.4 GB | 44 |
+
+Identical tokens per step (10,936 residues x 4 copies). **The pair track is 3.5x the step time and 1.6x the memory for 3M extra parameters** (0.6 % of the model), because triangular multiplication is O(L^2 d) with activation checkpointing forcing a recompute in the backward pass; the backward pass alone goes from 0.131 s to 0.597 s. The trunk's model-FLOP utilisation drops from 44 to 13 TFLOPS on the same card for the same reason: the pair work is not counted in the DiT FLOP estimate but consumes the time.
+
+This is the cost side of the pair-free ablation. The quality side is `lf_459M_nopair_long512_r4` (job 48844250), which repeats the best 512-residue recipe with the pair track removed and everything else held fixed.
