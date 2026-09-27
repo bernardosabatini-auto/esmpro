@@ -340,8 +340,18 @@ def sample_t(B, dev):
         t = torch.where(u, torch.rand(B, device=dev), t)
     return t.clamp(1e-4, 1 - 1e-4)
 
+REPEAT_COPIES = int(os.environ.get("REPEAT_COPIES", "1"))   # noisy copies of each protein per step
+
+
+def _repeat(x, r):
+    return x if r == 1 or x is None else x.repeat_interleave(r, dim=0)
+
+
 def fm_loss(net, z1, esm, mask, p_drop=0.1, p_sc=0.5, t_dist="logit-normal"):
     """esm: (B,L,1280) conditioning features (stored or online, any float dtype)."""
+    R = REPEAT_COPIES
+    if R > 1:   # R independent (t, x0, cond-drop) draws per protein, matching the pair trainer's repeated batching
+        z1, esm, mask = _repeat(z1, R), _repeat(esm, R), _repeat(mask, R)
     B = z1.shape[0]; dev = z1.device
     x0 = torch.randn_like(z1)
     if t_dist == "logit-normal":
