@@ -9,5 +9,5 @@
 #SBATCH --output=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/logs/%x_%j.out
 source /n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae/slurm/env.sh
 cd $ESM_PROAE_ROOT/code
-python -u gate24_codesign_eval.py --ckpt ${CKPT:-best_cd_174M_p64x6_esmc.pt} --n ${N:-100} 2>&1 | grep -v -i -E "warn|INFO|return data|important use|Loading weights"
+python -u gate24_codesign_eval.py --ckpt ${CKPT:-best_cd_174M_p64x6_esmc.pt} --n ${N:-100} ${EXTRA_ARGS:-} 2>&1 | grep -v -i -E "warn|INFO|return data|important use|Loading weights"
 echo ALLDONE
