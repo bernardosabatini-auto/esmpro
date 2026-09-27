@@ -21,6 +21,7 @@ pass instead of a second trunk pass.
 import os, sys, torch, torch.nn.functional as F
 ROOT = os.environ["ESM_PROAE_ROOT"]; sys.path.insert(0, ROOT + "/code")
 import gate7_latent_flow as G7, gate10_pair_flow as G10
+REPEAT_COPIES = G10.REPEAT_COPIES   # declared so the trainer's repeated-batching guard can see it is honoured
 from gate7_latent_flow import D_LAT
 
 N_BINS = 16

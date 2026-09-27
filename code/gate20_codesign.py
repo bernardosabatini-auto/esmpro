@@ -17,6 +17,7 @@ replaced by a masking embedder that remembers the mask and the true tokens for t
 import os, sys, math, torch, torch.nn as nn, torch.nn.functional as F
 ROOT = os.environ["ESM_PROAE_ROOT"]; sys.path.insert(0, ROOT + "/code")
 import gate7_latent_flow as G7, gate10_pair_flow as G10
+REPEAT_COPIES = G10.REPEAT_COPIES   # declared so the trainer's repeated-batching guard can see it is honoured
 from gate7_latent_flow import D_LAT
 
 AA = "ACDEFGHIKLMNPQRSTVWY"; AA_IDX = {c: i for i, c in enumerate(AA)}

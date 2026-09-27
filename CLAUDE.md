@@ -182,6 +182,20 @@ structure is still improving.
 Already wired: `--tm-every 1 --select-on tm`. Costs 27 s against a 4384 s epoch,
 0.6%. Patience scales by `tm_every` so un-evaluated epochs are not counted.
 
+### Bug 4 — a declared knob the loss never reads
+`REPEAT_COPIES=4` was set in the environment of the pair-free ablation, but
+`gate7_latent_flow.py`'s own `fm_loss` never read it (only the batch planner
+did). The arm trained on one noise draw per protein per epoch against its
+twin's four, and the batch planner still divided the token cap by four, so it
+also ran at a quarter of the memory it was given. The curve looked like a
+clean ablation result and was not one.
+
+**Guard, already wired:** the trainer prints `env R=` and the R actually
+honoured by the installed loss, and aborts when they differ. Any trainer that
+overrides `G7.fm_loss` must expose a module-level `REPEAT_COPIES`. More
+generally: when a knob is passed through the environment, print what the code
+consumed, not what was set.
+
 ### Also
 **3Di identity is useless below about TM 0.4.** Unrelated real proteins score
 ~0.142, so the 0.146-0.167 range observed across all models was entirely floor.

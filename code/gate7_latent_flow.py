@@ -675,6 +675,12 @@ def main(a):
     n_params = sum(p.numel() for p in net.parameters())
     say(f"  {a.label}: {n_params/1e6:.1f}M params, arch {arch}, world {world}, "
         f"batch {a.batch_size}/GPU = {a.batch_size*world} effective")
+    _r_env = int(os.environ.get("REPEAT_COPIES", "1"))
+    _r_loss = getattr(sys.modules.get(fm_loss.__module__), "REPEAT_COPIES", 1)
+    say(f"  repeated batching: env R={_r_env}, honoured by {fm_loss.__module__}.{fm_loss.__name__} R={_r_loss}")
+    if _r_env != _r_loss:   # a declared R the loss ignores silently changes samples/epoch (see reports/status_notes.md 2026-09-26)
+        raise SystemExit(f"REPEAT_COPIES={_r_env} is not honoured by the installed loss (R={_r_loss}); "
+                         "the run would see a different number of flow samples per epoch than intended.")
     if ddp:
         from torch.nn.parallel import DistributedDataParallel as DDP
         net = DDP(net, device_ids=[device.index])
