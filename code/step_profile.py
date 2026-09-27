@@ -11,16 +11,21 @@ ap.add_argument("--d-model", type=int, default=1024); ap.add_argument("--n-layer
 ap.add_argument("--budget", type=int, default=int(os.environ.get("STEP_BUDGET", "48"))); ap.add_argument("--n-steps", type=int, default=12)
 ap.add_argument("--recycle", action="store_true")
 ap.add_argument("--fused", action="store_true")
+ap.add_argument("--no-pair", action="store_true", help="plain gate7 latent DiT, no pair track (ablation cost)")
 ap.add_argument("--h5", default=None, help="data file for the batches (default dataset_100k_esmc.h5); use a long shard with ESM_PROAE_MAX_LEN=512")
 a = ap.parse_args(); dev = torch.device("cuda")
 train = G.RamSplit("train", 6000, 4, h5_path=a.h5 or str(G.PROJECT / "data/phase1_dataset/dataset_100k_esmc.h5"))
 print(f"window MAX_LEN={G.MAX_LEN}, data {os.path.basename(a.h5) if a.h5 else 'dataset_100k_esmc.h5'}", flush=True)
-if a.recycle:
+if a.no_pair:
+    Net = G.LatentFlowNet; loss_fn = G.fm_loss
+    net = Net(d_model=a.d_model, n_layers=a.n_layers, n_heads=a.n_heads, d_cond=2560).to(dev)
+elif a.recycle:
     import gate16_recycle_flow as G16; G16.install(); Net = G16.RecFlowNet; loss_fn = G16.fm_loss_rec
+    net = Net(d_model=a.d_model, n_layers=a.n_layers, n_heads=a.n_heads, d_cond=2560, d_pair=a.d_pair, n_pair_blocks=a.n_pair_blocks, pair_fused=a.fused).to(dev)
 else:
     G10.install(); Net = G10.PairFlowNet; loss_fn = G10.fm_loss_pair
-net = Net(d_model=a.d_model, n_layers=a.n_layers, n_heads=a.n_heads, d_cond=2560, d_pair=a.d_pair, n_pair_blocks=a.n_pair_blocks, pair_fused=a.fused).to(dev)
-print(f"{sum(p.numel() for p in net.parameters())/1e6:.0f}M params; budget {a.budget} x 256^2, recycle {a.recycle}", flush=True)
+    net = Net(d_model=a.d_model, n_layers=a.n_layers, n_heads=a.n_heads, d_cond=2560, d_pair=a.d_pair, n_pair_blocks=a.n_pair_blocks, pair_fused=a.fused).to(dev)
+print(f"{sum(p.numel() for p in net.parameters())/1e6:.0f}M params; budget {a.budget} x 256^2, recycle {a.recycle}, pair {not a.no_pair}", flush=True)
 opt = torch.optim.AdamW(net.parameters(), lr=1e-4, betas=(0.9, 0.95), weight_decay=0.01)
 gen = torch.Generator().manual_seed(0); plan = train.batch_plan(a.budget, True, gen, budget_cap=3)
 def sync(): torch.cuda.synchronize(); return time.perf_counter()
