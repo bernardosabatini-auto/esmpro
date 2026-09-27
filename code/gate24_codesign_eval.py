@@ -17,7 +17,7 @@ import gate7_latent_flow as G, gate10_pair_flow as G10, gate20_codesign as G20
 from gate6_fape_train import PROJECT, _write_pseudo_backbone_pdb, _foldseek_tm
 ap = argparse.ArgumentParser(); ap.add_argument("--ckpt", required=True); ap.add_argument("--n", type=int, default=100); ap.add_argument("--offset", type=int, default=1000)
 ap.add_argument("--steps", type=int, default=25); ap.add_argument("--cfg-w", type=float, default=2.0); ap.add_argument("--unmask-steps", type=int, default=10); ap.add_argument("--bs", type=int, default=10)
-ap.add_argument("--temp", type=float, default=0.0, help="unmasking temperature; 0 = argmax (collapses to the modal residue), >0 samples")
+ap.add_argument("--temp", type=float, default=1.0, help="unmasking temperature; 0 = argmax, which collapses to the modal residue (see reports/codesign.md) -- do not use")
 a = ap.parse_args(); dev = torch.device("cuda"); D = PROJECT / "data/phase1_dataset"
 meta = json.load(open(str(D / a.ckpt) + ".meta.json"))
 arch = {k: meta[k] for k in ("d_model", "n_layers", "n_heads", "dropout", "self_cond", "d_cond")}

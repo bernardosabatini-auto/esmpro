@@ -65,7 +65,7 @@ The honest designability number is therefore **co-design scTM 0.321 with 5 % abo
 
 ## Reading
 1. Joint sequence and structure generation runs in this architecture and costs 0.033 TM of folding accuracy at epoch 20, shrinking with training.
-2. The inverse-folding pathway has real signal, 2.4x the always-modal-residue baseline, but produces low-complexity sequences.
+2. The inverse-folding pathway has real signal: 0.179 recovery sampled (1.8x the always-modal-residue baseline, 3x composition sampling), 0.230 with argmax, from sequences whose composition matches natives.
 3. The co-design pathway looked collapsed only because of argmax unmasking; sampled at temperature 1 it produces native-like composition with the same self-consistency, and its designability is scTM 0.321 with 5 % above 0.5. Use `--temp 1`, never argmax.
 4. Every self-consistency number here refolds the design with the **same** model, which is the weakest possible check. The designs are written to `notes/cd_174M_p64x6_esmc_designs.fasta` for an independent ESMFold2 fold, which is the number that would actually count.
 5. This is a 175M prototype stopped at epoch 20 on the 80k set. It establishes the mechanism, not a competitive design result.
