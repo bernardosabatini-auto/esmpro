@@ -18,6 +18,25 @@ Per-target differences have sd 0.10 on every set, five times the mean gap, and 1
 
 **The one gap that is statistically solid is measured against predictions, not experiments.** Long validation is AFDB, so its references are AlphaFold outputs. What that row demonstrates is that ESMFold2-Fast agrees with AlphaFold more than we do; it does not demonstrate that it is more accurate.
 
+
+## 1b. Correction: with enough experimental targets, the gap IS resolvable (CAMEO22)
+Added after the 840M was scored on CAMEO22, which at 169 experimental, temporally separated
+targets is the largest real-structure benchmark we have:
+
+| set | n | ours | ESMFold2-Fast | gap | 95 % CI | we win / lose | sign test | per-target sd |
+|---|---|---|---|---|---|---|---|---|
+| CAMEO22 | 169 | 0.7801 | 0.8039 | +0.024 | **[+0.012, +0.036]** | 33 / 136 | < 1e-4 | 0.078 |
+
+So the CASP conclusion above was a sample-size statement, not a "the metric is meaningless"
+statement. CAMEO22 has 1.6-5.8x the targets of the CASP sets and a lower per-target sd (0.078
+against 0.106), and there the 0.024 deficit is solid on experimental structures. **The right
+reading is: the gap is real and about 0.024; the CASP sets are simply too small to measure it.**
+CAMEO22 should be the primary experimental benchmark from now on, with CASP as a secondary check
+and a per-target paired test always reported.
+
+One thing worth noting from that row: our best-of-4 on CAMEO22 is 0.8005, within 0.003 of
+ESMFold2-Fast's single prediction, at four samples costing 1.3-1.9 s against its 2.4 s.
+
 ## 2. The reference is not a point
 Two experimental structures of the same protein, superposed on their corresponding residues (Kabsch, TM-score with a fixed correspondence):
 
@@ -67,8 +86,8 @@ The decoder is faithful at zero error and very sharp away from it: a latent mean
 2. **The accuracy still on the table is a narrow, decoder-sensitive direction**, invisible to every latent-space signal we train on. Reaching it needs a signal computed after the decoder. The one attempt so far (`struct_loss.md`, lDDT through the decoder) lost 0.02 at 1.5x cost, but it was an auxiliary term during training rather than a targeted final stage, so the idea is not closed.
 
 ## Reading
-1. Report CASP results as "statistically indistinguishable in mean, behind on target count" rather than "0.02 behind". Quote the CI and the sign test.
-2. Stop treating the long-validation gap as the headline deficit: its reference is an AlphaFold prediction. The long-protein deficit on experimental structures is 0.031 on 29 domains with a CI spanning zero.
+1. The deficit is real: 0.024 on CAMEO22 (169 experimental targets, CI [+0.012, +0.036]). On the smaller CASP sets the same difference is inside the noise, so quote the CI and the sign test there rather than the mean alone. Use CAMEO22 as the primary experimental benchmark.
+2. Drop the long-validation gap entirely: its reference is an AlphaFold prediction (user directive, CLAUDE.md section 6b). The long-protein deficit on experimental structures is 0.031 on 29 CASP domains, with a CI spanning zero, so it is suggestive rather than measured.
 3. The generative-penalty excuse is dead. The remaining gap is accuracy.
 4. Never average latents, and never regress them.
 5. A per-target, paired view should be standard in every future comparison; means over 29 to 109 targets with sd 0.10 cannot support the conclusions we have been drawing from them.
