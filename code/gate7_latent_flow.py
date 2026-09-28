@@ -113,6 +113,48 @@ class RamSplit:
             out[r, :n_] = self.esm_flat[o:o + n_]
         return out
 
+    def _pool(self, gen=None):
+        """Dataset indices for one epoch. LONG_OVERSAMPLE>1 repeats proteins of at least
+        LONG_MIN residues that many times, so an epoch spends more of its steps on long
+        chains without touching the loss or the batching law."""
+        N = len(self)
+        base = torch.arange(N)
+        over = float(os.environ.get("LONG_OVERSAMPLE", "1"))
+        if over <= 1.0:
+            return base
+        lmin = int(os.environ.get("LONG_MIN", "257"))
+        lens = self.mask.sum(1)
+        long_idx = (lens >= lmin).nonzero().squeeze(-1)
+        if long_idx.numel() == 0:
+            return base
+        reps = int(over) - 1
+        extra = [long_idx.repeat(reps)] if reps > 0 else []
+        frac = over - int(over)
+        if frac > 0:
+            extra.append(long_idx[torch.rand(long_idx.numel(), generator=gen) < frac])
+        return torch.cat([base] + extra) if extra else base
+
+    def _pool_balanced(self, gen=None):
+        """LONG_FRAC=f: one epoch is still exactly len(self) proteins, but a fraction f of them
+        are at least LONG_MIN residues (long sampled with replacement, short subsampled). Epoch
+        size and therefore optimizer steps are unchanged, so an A/B against LONG_FRAC unset
+        isolates the training composition from the compute."""
+        N = len(self)
+        f = float(os.environ.get("LONG_FRAC", "0"))
+        if f <= 0:
+            return self._pool(gen)
+        lmin = int(os.environ.get("LONG_MIN", "257"))
+        lens = self.mask.sum(1)
+        long_idx = (lens >= lmin).nonzero().squeeze(-1)
+        short_idx = (lens < lmin).nonzero().squeeze(-1)
+        if long_idx.numel() == 0 or short_idx.numel() == 0:
+            return self._pool(gen)
+        n_long = min(N, int(round(f * N))); n_short = N - n_long
+        li = long_idx[torch.randint(long_idx.numel(), (n_long,), generator=gen)]
+        si = short_idx[torch.randperm(short_idx.numel(), generator=gen)[:n_short]] if n_short <= short_idx.numel() \
+             else short_idx[torch.randint(short_idx.numel(), (n_short,), generator=gen)]
+        return torch.cat([li, si])
+
     def batch_plan(self, bs, shuffle, gen=None, bucket=True, budget_cap=0):
         """List of index tensors, one per batch. bucket=True: proteins grouped by
         (noisy) length so each batch can be cropped to its longest sequence.
@@ -120,13 +162,15 @@ class RamSplit:
         buckets so that B * Lmax^2 stays ~ bs * 256^2 (the pair track's memory
         law), capped at budget_cap*bs proteins. This keeps GPU memory full at
         every step instead of sizing a fixed batch for the 256-residue worst case."""
-        N = len(self)
+        pool = self._pool_balanced(gen)
+        N = int(pool.numel())
         if not (shuffle and bucket):
-            order = torch.randperm(N, generator=gen) if shuffle else torch.arange(N)
+            order = pool[torch.randperm(N, generator=gen)] if shuffle else pool
             return [order[s:s+bs] for s in range(0, N, bs)]
-        lens = self.mask.sum(1).float()
+        lens_all = self.mask.sum(1).float()
+        lens = lens_all[pool]
         key = lens + torch.rand(N, generator=gen) * 24.0              # noisy sort: bucket width ~24 residues
-        order = torch.argsort(key); olens = lens[order]
+        o = torch.argsort(key); order = pool[o]; olens = lens[o]
         if budget_cap <= 0:
             plan = [order[s:s+bs] for s in range(0, N, bs)]
         else:
@@ -173,6 +217,8 @@ class ConcatSplit:
         self.names = sum((p.names for p in parts), [])
     def __len__(self): return self.z.shape[0]
     cond = RamSplit.cond
+    _pool = RamSplit._pool
+    _pool_balanced = RamSplit._pool_balanced
     batch_plan = RamSplit.batch_plan
     batch_from = RamSplit.batch_from
     batches = RamSplit.batches
@@ -189,8 +235,12 @@ class OnlineESM(nn.Module):
     model). Output: last hidden state (B, L, d_cond) with BOS/EOS stripped.
     layer_mix is kept for the ESM-2 ablation only; the user's direction is a
     single layer."""
-    def __init__(self, path, layer_mix=True, device="cuda", kind="esm2"):
+    def __init__(self, path, layer_mix=True, device="cuda", kind="esm2", layer=None):
         super().__init__()
+        # layer: read this hidden state instead of the last one (negative counts from the end).
+        # Not layer MIXING (ruled out, tied on ESM-2): a single, different layer. The final layer
+        # of a masked-LM is specialised for token prediction; structure tends to peak earlier.
+        self.layer = layer if layer is not None else (int(os.environ["ESM_LAYER"]) if os.environ.get("ESM_LAYER") else None)
         from transformers import AutoTokenizer, AutoModel, EsmModel
         self.kind = kind
         self.tok = AutoTokenizer.from_pretrained(path)
@@ -204,6 +254,9 @@ class OnlineESM(nn.Module):
             p.requires_grad = False
         self.d_cond = self.esm.config.hidden_size
         n_layers = self.esm.config.num_hidden_layers + 1          # embeddings + blocks
+        self.n_layers = n_layers
+        if self.layer is not None:
+            print(f"  conditioner: reading hidden state {self.layer} of {n_layers} ({kind})", flush=True)
         self.layer_mix = layer_mix
         # init: mostly the last layer (softmax weight ~0.2 on L33, ~0.025 elsewhere). A hard
         # one-hot init (+-5 logits) froze the mix: its softmax gradients were ~1e-5.
@@ -215,7 +268,10 @@ class OnlineESM(nn.Module):
         enc = self.tok(seqs, return_tensors="pt", padding="max_length", max_length=L + 2, truncation=True)
         ids, am = enc["input_ids"].to(self.device), enc["attention_mask"].to(self.device)
         with torch.no_grad():
-            out = self.esm(input_ids=ids, attention_mask=am, output_hidden_states=self.layer_mix)
+            out = self.esm(input_ids=ids, attention_mask=am,
+                           output_hidden_states=(self.layer_mix or self.layer is not None))
+        if self.layer is not None:
+            return out.hidden_states[self.layer][:, 1:L + 1]
         if self.layer_mix:
             hs = torch.stack(out.hidden_states, 0)[:, :, 1:L + 1]     # (n_layers, B, L, d), drop BOS
             w = torch.softmax(self.mix_logits, 0).to(hs.dtype)

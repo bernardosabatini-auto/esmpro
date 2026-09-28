@@ -17,9 +17,11 @@ ap.add_argument("--out", default=str(G.PROJECT / "data/phase1_dataset/dataset_10
 ap.add_argument("--esm-path", default=str(G.PROJECT / "data/esmc6b"))
 ap.add_argument("--src", default=str(G.H5_PATH), help="source HDF5 with split groups holding z, ca_coords and a sequence attr")
 ap.add_argument("--kind", default="esmc", help="esmc (default) or esm2: which language model to embed with")
+ap.add_argument("--layer", type=int, default=None, help="read this hidden state instead of the last (negative counts from the end); the last layer of a masked-LM is specialised for token prediction")
 a = ap.parse_args()
 if a.kind == "esm2" and a.esm_path.endswith("esmc6b"): a.esm_path = str(G.PROJECT / "data/esm2/esm2_t33_650M_UR50D")
-emb = G.OnlineESM(a.esm_path, device="cuda", kind=a.kind)
+emb = G.OnlineESM(a.esm_path, device="cuda", kind=a.kind, layer=a.layer)
+print(f"conditioner layers available: {emb.n_layers}, reading {a.layer if a.layer is not None else -1}", flush=True)
 src = h5py.File(a.src, "r"); out = h5py.File(a.out, "a")
 t0 = time.perf_counter()
 for split in a.splits.split(","):
