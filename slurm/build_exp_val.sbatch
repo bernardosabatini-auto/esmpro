@@ -15,7 +15,7 @@ echo "== select"
 python -u gate27_select_exp_val.py --n ${N:-1200} --threads 16 --min-id ${MINID:-0.3} 2>&1 | grep -v -i -E "$F"
 echo "== build (val group)"
 python -u gate15_build_pdb.py --list $ESM_PROAE_ROOT/data/pdb/exp_val_chains.tsv --out $D/dataset_exp_val.h5 \
-   --group val --workers 14 --enc-batch 48 2>&1 | grep -v -i -E "$F"
+   --group val --workers 8 --enc-batch 48 2>&1 | grep -v -i -E "$F"
 echo "== ESMC embeddings"
 python -u gate11_precompute_esmc.py --src $D/dataset_exp_val.h5 --splits val --out $D/dataset_exp_val_esmc.h5 --kind esmc --bs 48 2>&1 | grep -v -i -E "$F"
 echo "== autoencoder round-trip control on the new set"

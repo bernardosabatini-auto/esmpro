@@ -18,11 +18,22 @@ ROOT = os.environ["ESM_PROAE_ROOT"]; sys.path.insert(0, ROOT + "/ProteinAE_v1");
 from gate8_build_afdb import three_to_one
 DATA = f"{ROOT}/data/phase1_dataset"
 
-def _fetch(pid):
-    try:
-        return urllib.request.urlopen(f"https://files.rcsb.org/download/{pid.upper()}.pdb", timeout=60).read().decode("utf-8", "ignore")
-    except Exception:
-        return None
+def _fetch(pid, tries=4):
+    """RCSB refuses bursts; retry with backoff before giving up (a silent download failure
+    otherwise looks like a structural rejection in the tally)."""
+    import time as _t, random as _r
+    for ext in ("pdb", "cif"):
+        for k in range(tries):
+            try:
+                return (urllib.request.urlopen(f"https://files.rcsb.org/download/{pid.upper()}.{ext}", timeout=120).read().decode("utf-8", "ignore"), ext)
+            except urllib.error.HTTPError as e:
+                if e.code == 404: break          # no file in this format: try the next one
+                if k == tries - 1: break
+                _t.sleep(1.5 ** k + _r.random())
+            except Exception:
+                if k == tries - 1: break
+                _t.sleep(1.5 ** k + _r.random())
+    return None
 
 def parse_chain(text, chain):
     order, atoms = [], {}
@@ -43,14 +54,64 @@ def parse_chain(text, chain):
         at = atoms[k]; coords[i, 0], coords[i, 1], coords[i, 2], coords[i, 4] = at["N"], at["CA"], at["C"], at["O"]
     return seq, coords
 
-MIN_OBS, MIN_FRAC, MAX_LEN = 32, 0.8, int(os.environ.get("BUILD_MAX_LEN", "256"))
+
+def parse_chain_cif(text, chain):
+    """Same contract as parse_chain, for entries RCSB serves only as mmCIF (large assemblies:
+    files.rcsb.org returns 404 for their .pdb). Reads the _atom_site loop directly and uses the
+    author chain and author residue numbering so the chain ids match pdb_seqres."""
+    lines = text.splitlines()
+    i = 0; cols = None; start = None
+    while i < len(lines):
+        if lines[i].startswith("loop_"):
+            j = i + 1; names = []
+            while j < len(lines) and lines[j].startswith("_"):
+                names.append(lines[j].split()[0]); j += 1
+            if names and names[0].startswith("_atom_site."):
+                cols = {n: k for k, n in enumerate(names)}; start = j; break
+            i = j
+        else:
+            i += 1
+    if cols is None: return "", np.zeros((0, 37, 3), dtype=np.float32)
+    need = ["_atom_site.group_PDB", "_atom_site.label_atom_id", "_atom_site.label_alt_id",
+            "_atom_site.label_comp_id", "_atom_site.auth_asym_id", "_atom_site.auth_seq_id",
+            "_atom_site.Cartn_x", "_atom_site.Cartn_y", "_atom_site.Cartn_z"]
+    if any(n not in cols for n in need): return "", np.zeros((0, 37, 3), dtype=np.float32)
+    gi, ai, li, ci, chi, ri, xi, yi, zi = (cols[n] for n in need)
+    mi = cols.get("_atom_site.pdbx_PDB_model_num")
+    ii = cols.get("_atom_site.pdbx_PDB_ins_code")
+    order, atoms = [], {}
+    for ln in lines[start:]:
+        if ln.startswith("#") or ln.startswith("loop_") or ln.startswith("_"): break
+        f = ln.split()
+        if len(f) <= zi: continue
+        if f[gi] not in ("ATOM", "HETATM"): continue
+        if f[gi] == "HETATM" and f[ci] != "MSE": continue
+        if mi is not None and f[mi] not in (".", "1"): continue
+        if f[chi] != chain: continue
+        if f[li] not in (".", "?", "A", "1"): continue
+        nm = f[ai].strip('"')
+        key = f[ri] + (f[ii] if ii is not None and f[ii] not in (".", "?") else "")
+        if key not in atoms: atoms[key] = {"res": f[ci]}; order.append(key)
+        if nm in ("N", "CA", "C", "O") and nm not in atoms[key]:
+            atoms[key][nm] = (float(f[xi]), float(f[yi]), float(f[zi]))
+    keep = [k for k in order if all(x in atoms[k] for x in ("N", "CA", "C", "O"))]
+    seq = "".join("M" if atoms[k]["res"] == "MSE" else three_to_one.get(atoms[k]["res"], "X") for k in keep)
+    coords = np.full((len(keep), 37, 3), 1e-5, dtype=np.float32)
+    for i2, k in enumerate(keep):
+        at = atoms[k]; coords[i2, 0], coords[i2, 1], coords[i2, 2], coords[i2, 4] = at["N"], at["CA"], at["C"], at["O"]
+    return seq, coords
+
+MIN_OBS = int(os.environ.get("BUILD_MIN_OBS", "32"))
+MIN_FRAC = float(os.environ.get("BUILD_MIN_FRAC", "0.8"))   # 0.8 rejects gapped chains; CASP evaluation units are themselves partial, so a held-out set can go lower
+MAX_LEN = int(os.environ.get("BUILD_MAX_LEN", "256"))
 def _one(row):
     pid, ch, n_seqres, res, meth = row
     from canonicalize import canonicalize_pyg_data
     from torch_geometric.data import Data
-    text = _fetch(pid)
-    if text is None: return pid, "download"
-    seq, c = parse_chain(text, ch)
+    got = _fetch(pid)
+    if got is None: return pid, "download"
+    text, ext = got
+    seq, c = parse_chain(text, ch) if ext == "pdb" else parse_chain_cif(text, ch)
     n = len(seq)
     if n < MIN_OBS or n < MIN_FRAC * n_seqres: return pid, "too few observed"
     if n > MAX_LEN: return pid, "too long"
