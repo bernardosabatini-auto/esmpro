@@ -70,12 +70,13 @@ def main():
     ap.add_argument("--list", default=f"{ROOT}/data/pdb/selected_chains.tsv"); ap.add_argument("--out", default=f"{DATA}/dataset_pdb_train.h5")
     ap.add_argument("--workers", type=int, default=14); ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--enc-batch", type=int, default=64); ap.add_argument("--device", default="cuda")
+    ap.add_argument("--group", default="train", help="HDF5 group to write into (use val for a held-out evaluation set)")
     a = ap.parse_args()
     rows = []
     for l in list(open(a.list))[1:]:
         pid, ch, n, r, m, cs = l.rstrip("\n").split("\t"); rows.append((pid, ch, int(n), float(r), m))
     if a.limit: rows = rows[:a.limit]
-    out = h5py.File(a.out, "a"); grp = out.require_group("train")
+    out = h5py.File(a.out, "a"); grp = out.require_group(a.group)
     todo = [r for r in rows if f"{r[0]}_{r[1]}" not in grp]
     print(f"{len(rows)} chains listed, {len(todo)} to do", flush=True)
     os.chdir(ROOT + "/ProteinAE_v1")

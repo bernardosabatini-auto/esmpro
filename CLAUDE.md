@@ -220,6 +220,22 @@ Use TM.
 
 ---
 
+## 6b. Evaluate on real structures only (2026-09-27)
+
+An AFDB reference is an AlphaFold prediction, so TM against it measures imitation of AlphaFold,
+not accuracy. Every held-out / no-neighbour / long-val number written before 2026-09-27 was
+scored that way. **Selection and reporting use experimental structures**: CASP15/16 domains,
+CAMEO22, apo/holo, CoDNaS, and `dataset_exp_val{,_esmc}.h5` (PDB cluster representatives,
+resolution <= 3 A, 30 % identity separated from every training file and from those benchmarks,
+built by `code/gate27_select_exp_val.py` via `slurm/build_exp_val.sbatch`). AFDB numbers may be
+kept as training-distribution diagnostics, labelled as such, and never as the headline.
+
+**Also report a paired comparison, not two means.** Per-target differences between methods have
+sd ~0.10, so a mean difference of 0.02 over 29-109 targets is inside the noise. Quote the
+bootstrap CI and the sign test (`code/gate25_metric_resolution.py`). And remember what the target
+is worth: two experimental structures of the SAME protein differ by TM 0.23 (apo/holo) to 0.46
+(fold-switchers).
+
 ## 7. Settled — do not relitigate
 
 - **3 ODE steps is correct, not a shortcut.** Head output is identical at 3, 5,
