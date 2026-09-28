@@ -9,7 +9,7 @@ EXTRAS="$D/dataset_afdb_train_0_esmc.h5,$D/dataset_afdb_train_1_esmc.h5,$D/datas
 EXTRA="--h5-path $D/dataset_100k_esmc.h5 --extra-train-h5 $EXTRAS --val-h5 $D/dataset_long_val_esmc.h5 --n-val 1000 \
   ${PAIR:---d-pair 128 --n-pair-blocks 8} --d-model ${DM:-1024} --n-layers ${NL:-24} --n-heads ${NH:-16} --batch-size ${BS:-60} \
   --lr ${LR:-1e-4} --warmup ${WARMUP:-300} --epochs ${EPOCHS:-12} --eval-every 1 --eval-n 100 --patience ${PATIENCE:-6} --cfg-w 2 --workers 4 \
-  --sample-steps 25 --budget-cap ${BUDGET:-3} ${WARM:+--warm-start $WARM}"
+  --sample-steps 25 --budget-cap ${BUDGET:-3} ${WARM:+--warm-start $WARM} ${XARGS:-}"
 # TLATE=1 -> SimpleFold late-t resampling (logit-normal m 0.8 s 1.7, 2 % uniform)
 if [ -n "$TLATE" ]; then export T_LOGIT_M=0.8 T_LOGIT_S=1.7 T_UNIF=0.02; fi
 export TOKEN_CAP=${TOKEN_CAP:-32000}   # short buckets at R=8 otherwise blow the trunk-activation memory (cycle2 OOM at 143 GB)
