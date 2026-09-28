@@ -768,6 +768,7 @@ def main(a):
     # steps/epoch must come from the REAL budget-batched plan: with residue budgeting and
     # repeated batching the nominal len(train)/batch_size is off by 2x or more, which silently
     # made the cosine finish long before (or after) --epochs. See CLAUDE.md bug 5.
+    _probe_pool = train._pool_balanced(torch.Generator().manual_seed(12345))
     _probe = train.batch_plan(a.batch_size, True, torch.Generator().manual_seed(12345), budget_cap=a.budget_cap)
     steps_per_epoch = max(1, len(_probe))
     if ddp:
@@ -776,6 +777,12 @@ def main(a):
     sched_epochs = a.sched_epochs if a.sched_epochs > 0 else a.epochs
     total = steps_per_epoch * sched_epochs
     say(f"  lr schedule: {steps_per_epoch} steps/epoch (measured), cosine over {sched_epochs} epochs = {total} steps, warmup {a.warmup}")
+    _lens = train.mask.sum(1)
+    _lmin = int(os.environ.get("LONG_MIN", "257"))
+    _nat = float((_lens >= _lmin).float().mean())
+    _got = float((_lens[_probe_pool] >= _lmin).float().mean())
+    say(f"  training composition: LONG_FRAC={os.environ.get('LONG_FRAC','0')} LONG_OVERSAMPLE={os.environ.get('LONG_OVERSAMPLE','1')}"
+        f" -> {_got:.3f} of each epoch is >= {_lmin} residues (natural {_nat:.3f}), epoch {len(_probe_pool)} proteins")
     def lr_at(step):
         if step < a.warmup: return step / max(a.warmup, 1)
         pr = (step - a.warmup) / max(total - a.warmup, 1)

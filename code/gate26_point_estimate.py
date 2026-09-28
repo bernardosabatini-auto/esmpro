@@ -82,7 +82,7 @@ for s0 in range(0, N, a.bs):
     esm, z_true, ca_true, mask, _ = next(iter(DataLoader(Subset(vf, sub), batch_size=len(sub))))
     esm, z_true, mask = esm.to(dev), z_true.to(dev), mask.to(dev)
     B, L = mask.shape
-    with torch.amp.autocast("cuda", dtype=torch.bfloat16):
+    with torch.no_grad(), torch.amp.autocast("cuda", dtype=torch.bfloat16):
         pr = net.compute_pair(esm, mask) if pair_net else None
         zs = []
         for k in range(a.k):
@@ -108,9 +108,9 @@ for s0 in range(0, N, a.bs):
     dmat = torch.cdist(flat.permute(1, 0, 2), flat.permute(1, 0, 2))     # (B,K,K)
     est["medoid"] = Z[dmat.mean(-1).argmin(-1), torch.arange(B, device=dev)]
     for kk, v in est.items():
-        est_zmse.setdefault(kk, []).append(float((((v - z_true) ** 2) * m).sum() / (m.sum() * G.D_LAT)))
-    cas = {kk: dec(v.float(), mask).float().cpu() for kk, v in est.items()}
-    ca_k = [dec(Z[k].float(), mask).float().cpu() for k in range(a.k)]
+        est_zmse.setdefault(kk, []).append(float((((v.detach() - z_true) ** 2) * m).sum() / (m.sum() * G.D_LAT)))
+    cas = {kk: dec(v.float(), mask).float().detach().cpu() for kk, v in est.items()}
+    ca_k = [dec(Z[k].float(), mask).float().detach().cpu() for k in range(a.k)]
     for i, n in enumerate(nb):
         Ln = int(mask[i].sum())
         _write_pseudo_backbone_pdb(ca_true[i, :Ln].numpy(), f"{dirs['truth']}/{n}.pdb")
@@ -123,7 +123,7 @@ for s0 in range(0, N, a.bs):
             g = torch.Generator(device=dev).manual_seed(7)
             zn = z_true if s == 0 else F.layer_norm(z_true + s * torch.randn(z_true.shape, device=dev, generator=g), (G.D_LAT,))
             zmse_acc.setdefault(s, []).append(float((((zn - z_true) ** 2) * m).sum() / (m.sum() * G.D_LAT)))
-            can = dec((zn * m).float(), mask).float().cpu()
+            can = dec((zn * m).float(), mask).float().detach().cpu()
             for i, n in enumerate(nb):
                 Ln = int(mask[i].sum()); _write_pseudo_backbone_pdb(can[i, :Ln].numpy(), f"{dirs[f'sig{s}']}/{n}.pdb")
     print(f"  {min(s0+a.bs, N)}/{N}", flush=True)
