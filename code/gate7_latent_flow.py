@@ -735,6 +735,7 @@ def main(a):
     _r_env = int(os.environ.get("REPEAT_COPIES", "1"))
     _r_loss = getattr(sys.modules.get(fm_loss.__module__), "REPEAT_COPIES", 1)
     say(f"  repeated batching: env R={_r_env}, honoured by {fm_loss.__module__}.{fm_loss.__name__} R={_r_loss}")
+    say(f"  condition dropout p_drop={a.p_drop} (0.1 = classifier-free guidance only; higher trains the unconditional prior)")
     if _r_env != _r_loss:   # a declared R the loss ignores silently changes samples/epoch (see reports/status_notes.md 2026-09-26)
         raise SystemExit(f"REPEAT_COPIES={_r_env} is not honoured by the installed loss (R={_r_loss}); "
                          "the run would see a different number of flow samples per epoch than intended.")
