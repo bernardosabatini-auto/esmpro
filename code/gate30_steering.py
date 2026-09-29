@@ -37,8 +37,9 @@ ap.add_argument("--guide-norm", action="store_true", help="normalise the guidanc
 ap.add_argument("--rg-target-frac", type=float, default=0.80, help="target Rg as a fraction of the unguided sample's Rg")
 ap.add_argument("--alphas", default="0.25,0.5,0.75")
 ap.add_argument("--motif-frac", type=float, default=0.3)
+ap.add_argument("--out-dir", default="gate30")
 a = ap.parse_args(); dev = torch.device("cuda")
-D = PROJECT / "data/phase1_dataset"; OUT = str(PROJECT / "notes" / "gate30"); os.makedirs(OUT, exist_ok=True)
+D = PROJECT / "data/phase1_dataset"; OUT = str(PROJECT / "notes" / a.out_dir); os.makedirs(OUT, exist_ok=True)
 
 # ---- model ----
 ck = D / a.ckpt
@@ -102,13 +103,16 @@ def sample(esm, mask, x0=None, gen=None, guide=None, scale=0.0, fixed=None, drop
     applied to the decoded one-step estimate with gradient. fixed: (z_target, keep_mask)."""
     B, L = mask.shape
     x = torch.randn(B, L, G.D_LAT, device=dev, generator=gen) if x0 is None else x0.clone()
+    eps_fix = torch.randn(B, L, G.D_LAT, device=dev, generator=gen) if fixed is not None else None
     x_sc = None
     ts = torch.linspace(0, 1, a.steps + 1, device=dev)
     for i in range(a.steps):
         t = ts[i].expand(B); dt = ts[i + 1] - ts[i]
         if fixed is not None:                       # inpainting: hold the motif on its own path
             z_t, keep = fixed
-            x = torch.where(keep.unsqueeze(-1), (1 - ts[i]) * torch.randn_like(x) + ts[i] * z_t, x)
+            # one noise draw for the motif's whole trajectory: re-drawing it each step made the
+            # fixed region incoherent from step to step (6 % designable in the first attempt)
+            x = torch.where(keep.unsqueeze(-1), (1 - ts[i]) * eps_fix + ts[i] * z_t, x)
         with torch.amp.autocast("cuda", dtype=torch.bfloat16):
             v = _v(x, t, esm, mask, x_sc, drop_all).float()
         if guide is not None and scale > 0:

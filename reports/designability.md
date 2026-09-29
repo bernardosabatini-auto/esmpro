@@ -21,3 +21,34 @@
 
 ## What it changes
 The generative claim now has an independent number: 75 % of unconditional samples from a 459M latent flow are designable, against 94 % for real structures through the same pipeline. Steering satisfies constraints but costs designability, and motif scaffolding does not yet work. Those two, not folding accuracy, are where the generative line should go next.
+
+
+## Addendum — a model trained to be a generator is not better (jobs 49276630-55)
+
+`pf_459M_gen_pdrop50`: our best model fine-tuned 4 epochs with the sequence conditioning dropped
+on **half** of all steps instead of the usual 10 %, so the unconditional prior is trained rather
+than incidental. Folding barely moved (real-structure TM 0.598 -> 0.588 across the 4 epochs,
+parent 0.592). 64 backbones per row, coverage 1.00 throughout.
+
+| condition | baseline scTM / designable | generator-trained scTM / designable |
+|---|---|---|
+| unconditional prior | **0.609 / 67 %** | 0.582 / 64 % |
+| contact steered, scale 0.1 | **0.590 / 61 %** | 0.542 / 48 % |
+| contact steered, scale 0.2 | 0.517 / 52 % | 0.516 / 47 % |
+| motif inpainting | 0.403 / 12 % | 0.392 / 3 % |
+
+**Training for generation bought nothing, and is slightly worse on every row.** Add it to the
+list of exhausted levers in `scaling_exhausted.md`. The prior we get from ordinary
+classifier-free-guidance dropout at 10 % is apparently as good as this architecture's prior gets.
+
+Two corrections to the numbers above this addendum, both from the larger sample:
+- the unconditional prior's designable fraction is **67 %** at n = 64, not the 75 % measured at
+  n = 32; scTM is unchanged at 0.609, so the earlier figure was optimistic by sampling.
+- **the designability cost of steering is graded, not a cliff.** At guidance 0.1 the baseline
+  keeps 0.590 / 61 % while pulling the constrained pair from 24.5 A to 14.7 A; at 0.2 it reaches
+  8.0 A but falls to 0.517 / 52 %. There is a usable middle where a constraint is partly
+  satisfied and most structures remain designable.
+- **inpainting is genuinely broken, not a bug.** The first attempt re-drew the motif's noise at
+  every integration step; fixing that to a single draw moved the baseline from 6 % to 12 %
+  designable, still far below the 67 % of an unconstrained sample. Holding a motif fixed and
+  sampling around it does not produce a coherent protein in this latent.
