@@ -36,7 +36,17 @@ No retraining. At each step form the one-step estimate `x1 = x_t + (1-t)v`, deco
 
 At scale 2 the objective moves 64 % of the way to target **with bond geometry and clash rate unchanged**. Past that the guidance destroys the protein and stops achieving the objective at all (Rg at scale 40 goes the wrong way). There is a usable window and it is narrow.
 
-**Objective: bring two residues within 8 A.** Contact distance falls from 24.3 A to 17.5 A at scale 2, but Ca-Ca is already 21.4 A there: the structure is gone. A hard pairwise constraint is far more violent than a global one. A finer sweep (0.5-4) is running.
+**Objective: bring two residues within 8 A.** This failed at first and the reason was my parameterisation, not the model. The radius-of-gyration gradient is spread over every residue; a single-pair contact concentrates its gradient on 2 of ~150, so the same nominal scale applies a per-residue force two orders of magnitude larger and tears the chain apart (Ca-Ca 7.53 A already at scale 0.5). Normalising the guidance gradient to unit RMS per sample (`--guide-norm`) makes a scale mean the same displacement whatever the objective:
+
+| scale (normalised) | Ca-Ca | in-range | clash | contact distance | helix |
+|---|---|---|---|---|---|
+| 0 | 3.84 | 0.87 | 0.000 | 24.3 A | 0.42 |
+| 0.02 | 3.84 | 0.85 | 0.000 | 22.4 | 0.42 |
+| 0.05 | 3.84 | 0.86 | 0.000 | 19.6 | 0.40 |
+| 0.1 | 3.84 | 0.86 | 0.000 | 14.7 | 0.36 |
+| **0.2** | **3.84** | **0.87** | **0.000** | **8.2** | 0.29 |
+
+**The constraint is satisfied -- 24.3 A down to 8.2 A against an 8 A target -- with bond geometry and clash rate untouched.** Helix content falls from 0.42 to 0.29, which is what forming a long-range contact should do to the fold. Under the same normalisation the Rg objective reaches 14.9 A at scale 0.2, also with perfect geometry. So both a global and a hard pairwise design constraint are steerable at sampling time, with no retraining.
 
 **Motif inpainting** (hold 30 % of residues on the real latent's own noise-to-data path): Ca-Ca 3.95, clash 0.003, and TM to the source protein rises from 0.29 to 0.36. Geometry survives and the motif is partly respected, but 30 % of residues fixed buying 0.07 TM means the scaffold is not tightly following the motif yet.
 
@@ -54,5 +64,5 @@ Loop: structure -> sequence (co-design head, temperature 1) -> ESMFold2-Fast -> 
 
 ## Reading
 1. The generative capacity is real and it is reachable: unconditional samples are well-formed and novel, and noise-space interpolation gives smooth families of valid structures.
-2. Conditioning at sampling time works for a global geometric objective inside a narrow strength window, and fails for a hard pairwise constraint as implemented.
+2. Conditioning at sampling time works for both a global geometric objective and a hard pairwise contact, with geometry fully preserved, once the guidance gradient is normalised so a scale means the same displacement for every objective. Un-normalised, objectives whose gradient is concentrated on few residues destroy the structure; that was a bug in the knob, not a limit of the method.
 3. Whether any of this yields *designable* proteins is not yet measurable with our own inverse-folder. That is the next thing to fix, and it is cheap.

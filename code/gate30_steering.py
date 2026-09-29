@@ -33,6 +33,7 @@ ap.add_argument("--n", type=int, default=32); ap.add_argument("--steps", type=in
 ap.add_argument("--h5", default="dataset_exp_val_esmc.h5"); ap.add_argument("--names-file", default="notes/exp_val_names.txt")
 ap.add_argument("--bs", type=int, default=8); ap.add_argument("--max-len", type=int, default=256)
 ap.add_argument("--guide-scales", default="0,2,10,40")
+ap.add_argument("--guide-norm", action="store_true", help="normalise the guidance gradient to unit RMS per sample, so a scale means the same displacement whatever the objective (a single-pair contact concentrates its gradient on 2 of ~150 residues; Rg spreads it over all)")
 ap.add_argument("--rg-target-frac", type=float, default=0.80, help="target Rg as a fraction of the unguided sample's Rg")
 ap.add_argument("--alphas", default="0.25,0.5,0.75")
 ap.add_argument("--motif-frac", type=float, default=0.3)
@@ -116,6 +117,9 @@ def sample(esm, mask, x0=None, gen=None, guide=None, scale=0.0, fixed=None, drop
                 ca = dec(proj(x1, mask).float(), mask)
                 obj = guide(ca, mask).sum()
                 g, = torch.autograd.grad(obj, x1)
+            if a.guide_norm:                         # equalise objectives: unit-RMS displacement per step
+                rms = g.flatten(1).pow(2).mean(1).sqrt().clamp(min=1e-8).view(-1, 1, 1)
+                g = g / rms
             v = v - scale * g * (1 - ts[i])          # push the endpoint estimate downhill
         if getattr(net, "self_cond", False): x_sc = x + (1 - ts[i]) * v
         x = x + v * dt
