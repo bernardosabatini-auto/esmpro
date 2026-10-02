@@ -57,10 +57,15 @@ def parse_fasta(text):
             if acc:
                 out[acc] = ("".join(buf), gene, entry)
             buf = []
-            # >sp|P24752|THIL_HUMAN Acetyl-CoA ... GN=ACAT1 PE=1 SV=2
+            # Two header forms reach here. UniProt's own:  >sp|P24752|THIL_HUMAN ... GN=ACAT1
+            # and this script's cache, written below:     >P24752|THIL_HUMAN|GN=ACAT1
+            # Reading the cache as UniProt form keys every sequence by its entry name, so no
+            # cached sequence ever matches and the whole set is silently re-fetched.
             parts = line[1:].split("|")
-            acc = parts[1] if len(parts) > 2 else parts[0].split()[0]
-            rest = parts[2] if len(parts) > 2 else ""
+            if parts[0] in ("sp", "tr") and len(parts) > 2:
+                acc, rest = parts[1], parts[2]
+            else:
+                acc, rest = parts[0].split()[0], (parts[1] if len(parts) > 1 else "")
             entry = rest.split()[0] if rest else ""
             m = re.search(r"\bGN=([^\s]+)", line)
             gene = m.group(1) if m else ""

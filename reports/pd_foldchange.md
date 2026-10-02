@@ -186,6 +186,70 @@ than either dose and gains nothing, **the limit is not measurement noise**, cons
 content even though joint fitting extracts nothing extra. Shuffled-label control through the
 boosted path: r = 0.006.
 
+## 6b. An MLP readout that beats ridge
+
+The default MLP of §6 overfit within a few epochs. A properly regularised readout does better,
+selected without touching the test folds: an inner split holding out 15 % of each training
+fold's sequence clusters drives early stopping and chooses among 57 candidates, and the outer
+cluster-grouped folds are the same ones every ridge number was scored on. Each candidate is a
+16-member ensemble trained in one vectorised pass (stacked weights, batched matmul, a separate
+minibatch order per member): 48 architecture/regularisation settings × 5 folds × 2 doses ran in
+11.9 min on one RTX card at 1.5 GB peak. Input is the layer-50 embedding.
+
+| | ridge | selected MLP | gain, paired bootstrap |
+|---|---|---|---|
+| 75 mM | 16.0 % | 16.5 % | +0.5 points [−0.4, +1.4] |
+| **150 mM** | **18.2 %** | **20.3 %** | **+2.2 points [+1.1, +3.3]** |
+| 50/50 average of the two, 75 mM | — | 17.2 % | +1.2 points [+0.7, +1.6] |
+| 50/50 average of the two, 150 mM | — | 20.4 % | +2.2 points [+1.7, +2.8] |
+
+The selected model is a 16-member ensemble of 2560 → 512 → 128 → 1 GELU networks, dropout 0.3,
+weight decay 0.1, on the full standardised embedding. At 150 mM it beats ridge with an interval
+that excludes zero; at 75 mM the gain is in the same direction but within noise. Averaging the
+MLP with ridge at a fixed, untuned 50/50 weight is the most reliable form, positive at both doses.
+
+What did the work, and what did not:
+
+- **Ensembling and width, not tricks.** The gain comes from the 16-member ensemble of a
+  two-layer network on the full input. Compressing the input to 256 whitened principal components
+  always lost (best 15.8 % / 18.1 %), so the information the nonlinear readout uses is spread
+  across many dimensions.
+- **Starting from the ridge solution never helped.** In every residual-on-ridge configuration the
+  zero-initialised nonlinear term made held-out clusters worse from its first update, so early
+  stopping kept the ridge solution (median best epoch 0).
+- **At 75 mM the networks still peak at epoch 1–2**, against 19–22 at 150 mM. The 75 mM target
+  has two-thirds the spread, and the readout has not been given a slow enough schedule to resolve
+  it; a lower learning rate is the obvious next setting.
+
+### Using the individual samples instead of the replicate mean
+
+Each block is 10 runs. A Gaussian model of every run, with each protein's level profiled out,
+reduces exactly to a weighted regression on a precision-weighted fold change, so the likelihood
+of all 20 samples is fitted without expanding the data. The per-sample variance model, fitted on
+training proteins only, has a level for each run and a smooth dependence on abundance: replicate
+scatter is 4× larger in the lowest-abundance quintile (0.131) than the highest (0.034), and one
+75 mM run is 1.7× noisier than the best. Fold changes are formed within each technical group and
+then combined, so the weak protein-specific technical-batch offset still cancels when runs are
+weighted unequally. The precision-weighted fold change correlates with the plain one at 0.9994.
+
+Three ways to let that variance discount samples, each swapped into the same three best
+architectures (change in outer R2 against the same network trained on the plain mean):
+
+| weighting | 75 mM | 150 mM |
+|---|---|---|
+| **naive**: weight = 1 / measurement variance | −1.5 to −4.1 points | −1.3 to −2.3 points |
+| **replicate likelihood**: variance = learned model error + measurement variance | +0.0 to +0.2 | −0.3 to +0.1 |
+| **heteroscedastic**: network predicts its own per-protein variance | −0.0 to +0.4 | −0.2 to +0.6 |
+
+Weighting by measurement noise alone costs up to 4 points: it hands the best-measured,
+high-abundance proteins up to 16× the influence of the noisiest, and those are not the proteins
+whose fold change is easiest to predict. Under the correct likelihood the learned model error is
+0.27–0.48 of the target variance against a measurement variance of 0.4–0.8 %, so the weights come
+out nearly uniform and the result is the plain-mean fit. Here measurement noise is about 1 % of
+the variance, so there is almost nothing for sample-level weighting to recover. Where noise is a
+large share of the variance, as in the STAU contrasts of the GA_33 experiment (37–52 %), the same
+machinery has real room to act.
+
 ## 7. Which ESMC layer to read
 
 Nine evenly spaced hidden states of 81 were pooled in one forward pass and scored separately.
@@ -242,7 +306,9 @@ forces a smaller token budget.
 
 ## 9. Where this stands
 
-Sequence explains 16–18 % of the variance in salt sensitivity against ~99 % being explainable.
+Sequence explains 16–20 % of the variance in salt sensitivity against ~99 % being explainable —
+16.0 % / 18.2 % with ridge, and 16.5 % / 20.3 % with a regularised ensemble MLP readout, which beats
+ridge significantly at 150 mM.
 Amino-acid composition alone gets 6–8 % of it; the embedding roughly 2.4× that, and it subsumes
 composition rather than adding to it. Hand-built electrostatic descriptors add nothing over raw
 composition. The signal is not nearest-neighbour lookup, and the gap to the ceiling is large and
@@ -279,3 +345,5 @@ Most likely reasons for the gap, cheapest to test first:
 | `code/pd07_layers.py` | score each hidden state |
 | `code/pd07b_bestlayer.py` | the chosen layer on the main target, paired bootstrap |
 | `code/pd08_nested.py` | nested decomposition: length, composition, physicochemical, embedding |
+| `code/pd09_mlp.py` | vectorised ensemble MLP readouts, nested selection, per-sample likelihoods |
+| `code/pd_folds.py` | the scikit-learn folds written to disk for the GPU env |
