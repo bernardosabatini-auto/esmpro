@@ -308,9 +308,29 @@ charge and disorder features ("charged disordered low-complexity tracts", "KR-ri
 "RS/SR phospho-regulated regions"). Family averages account for 60 % of what the model explains, and
 within families prediction still correlates at 0.56.
 
-The two co-chaperones respond the same way to staurosporine and nearly the same way to heat. Their
-one difference under heat is uniform convergence: at 43 °C each protein keeps about 40 % of its 35 °C
-preference, and nothing reproducible remains beyond that shrinkage.
+**Different preferences, the same responses.** Two different quantities are involved, and they
+behave differently.
+
+- *Preference* is how much of a protein one co-chaperone holds relative to the other. The two
+  pull-downs do not contain separate sets of proteins: 8,265 proteins are measured in both at 35 °C,
+  and they differ in proportion, typically by 1.3- to 1.5-fold. The preferences above are tendencies
+  of this kind, not exclusive client lists.
+- *Response* is how a protein's binding changes with a condition, measured separately in each
+  pull-down. Across proteins, the heat response measured with DNAJA1 and the heat response measured
+  with DNAJB11 correlate at 0.93; for staurosporine the two agree completely once measurement noise
+  is accounted for (0.83-1.0). A protein that gains binding with heat gains it with both
+  co-chaperones, and one that loses, loses with both. The response is therefore a property of the
+  protein, of how it behaves when the lysate is heated or treated, rather than of the co-chaperone
+  that captures it.
+
+The two co-chaperones thus differ in *which proteins they favour*, but heat and staurosporine change
+those proteins in the same way for both. The one systematic difference is that heat weakens the
+preferences. The spread of preferences across proteins falls from 0.54 log2 at 35 °C to 0.36 at
+43 °C, and each protein keeps about 40 % of its 35 °C preference on the log scale: a protein 1.5-fold
+more abundant in the DNAJB11 pull-down at 35 °C is about 1.2-fold more abundant at 43 °C. Nothing
+reproducible remains beyond this uniform shrinkage. The two pull-downs converge as the temperature
+rises, as expected if the clients that heat recruits are bound similarly by both co-chaperones and
+dilute their original preferences.
 
 # 7. Across experiments
 
