@@ -91,6 +91,7 @@
 <li><strong>Staurosporine acts on protein kinases.</strong> Kinases are specifically depleted from both co-chaperone pull-downs (p = 2e-20), while some, notably the PKC family, rise. The 3.6 % of proteins that are kinases carry about half of the response’s variance.</li>
 <li><strong>One nonlinear model serves several temperatures.</strong> For heat, a network trained at 43 °C needs only a new linear readout to predict 37 °C. For staurosporine, a network trained at another temperature does as well as or better than the temperature’s own.</li>
 <li><strong>Part of what is predicted is the family.</strong> Half to three quarters of the model’s success on proteins in large families is getting the family’s average response right.</li>
+<li><strong>The sparse-autoencoder features make the predictions readable.</strong> They keep 90-114 % of the embedding’s predictive power. Salt is predicted by transmembrane-helix features, heat by folded enzyme-core features against disorder and membrane features, and staurosporine by kinase-domain features.</li>
 </ul>
 <h1 id="data-and-approach">Data and approach</h1>
 <p><strong>Salt titration.</strong> HSPB1 pull-downs from 7,184 proteins at 0, 75 and 150 mM salt, each as 2 technical x 5 biological replicates of log2 intensities. The fold change is the difference of biological-replicate means, kept when both conditions have at least 7 of 10 values (6,989 proteins at 75 mM, 6,695 at 150 mM).</p>
@@ -545,6 +546,132 @@
 </table>
 <p>Membrane transporters stand out in both salt and heat, in opposite directions: they rise in the HSPB1 pull-down with salt and fall in the co-chaperone pull-downs with heat, and in both the model predicts the family average well. Cytoskeletal structural proteins (tubulin, actin) are the most consistently mispredicted.</p>
 <p><strong>By compartment</strong> the heat response is predicted about equally well everywhere (20-30 %, lowest for the cytoskeleton). For staurosporine, endoplasmic-reticulum proteins are predicted best (17 %, within r = 0.41) and secreted proteins worst (about 0 %). For salt, mitochondrial, Golgi and membrane proteins (25-28 %) are predicted better than cytoplasmic and cytoskeletal ones (17 %).</p>
+<h1 id="interpretable-features-from-the-esmc-6b-sparse-autoencoder">Interpretable features from the ESMC-6B sparse autoencoder</h1>
+<p>Biohub’s sparse autoencoder for ESMC-6B (layer 60 of 80) rewrites each residue’s 2,560-number representation as a combination of 64 active features out of 16,384, each with a label and description written by a language-model agent from the feature’s activations across millions of proteins. Features were computed for all 10,019 proteins, and a protein’s value for a feature is its strongest activation along the sequence. Two checks: the autoencoder reconstructs layer 60 at least as well as the adjacent layers, and its P-loop NTPase feature fires on GTPases, kinesins, myosins, dynamin and DEAD-box helicases (64 % nucleotide-binding, against 10 % overall).</p>
+<p><strong>The features keep nearly all of the predictive information.</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Response</th>
+<th style="text-align: right;">Embedding, layer 60</th>
+<th style="text-align: right;">SAE features</th>
+<th style="text-align: right;">Top 1 feature</th>
+<th style="text-align: right;">Top 10</th>
+<th style="text-align: right;">Top 100</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Salt, 150 mM</td>
+<td style="text-align: right;">16.2 %</td>
+<td style="text-align: right;">15.5 %</td>
+<td style="text-align: right;">3.0 %</td>
+<td style="text-align: right;">3.7 %</td>
+<td style="text-align: right;">3.9 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Heat, 43 vs 35 °C</td>
+<td style="text-align: right;">20.8 %</td>
+<td style="text-align: right;">19.5 %</td>
+<td style="text-align: right;">2.7 %</td>
+<td style="text-align: right;">9.4 %</td>
+<td style="text-align: right;">12.7 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Heat, 37 vs 35 °C</td>
+<td style="text-align: right;">10.2 %</td>
+<td style="text-align: right;">10.1 %</td>
+<td style="text-align: right;">2.0 %</td>
+<td style="text-align: right;">3.3 %</td>
+<td style="text-align: right;">4.1 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Staurosporine, 37 °C</td>
+<td style="text-align: right;">6.5 %</td>
+<td style="text-align: right;">7.4 %</td>
+<td style="text-align: right;">2.8 %</td>
+<td style="text-align: right;">3.6 %</td>
+<td style="text-align: right;">3.4 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Staurosporine, 43 °C</td>
+<td style="text-align: right;">5.8 %</td>
+<td style="text-align: right;">7.0 %</td>
+<td style="text-align: right;">3.0 %</td>
+<td style="text-align: right;">3.6 %</td>
+<td style="text-align: right;">3.1 %</td>
+</tr>
+</tbody>
+</table>
+<p><em>Top k: features chosen by correlation inside each training fold, scored on held-out clusters.</em></p>
+<p>The 16,384 features match the embedding they are derived from (90-114 %). A handful of features captures half the heat response, and one feature half the staurosporine response; the salt response is spread over hundreds.</p>
+<p><strong>What the predictive features are.</strong> For each response, the categories of the 100 most strongly associated features were compared with 500 random features, and each feature’s label was checked against the UniProt keywords of the proteins in these data on which it is active.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Response</th>
+<th style="text-align: left;">Features of proteins that rise</th>
+<th style="text-align: left;">Features of proteins that fall</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Salt</td>
+<td style="text-align: left;">Transmembrane helices: 94 of the top 100 are membrane-associated (random: 13 %; p = 6e-58), e.g. “transmembrane helix exit signature”, “multipass membrane helices”; carriers, SLC transporters, ETC subunits</td>
+<td style="text-align: left;">Long disordered regions</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Heat</td>
+<td style="text-align: left;">Folded enzyme cores: structural motifs (odds ratio 5.5, p = 1e-9), e.g. the isocitrate dehydrogenase beta-strand feature; catalase, IDH, ALDH, enolase, TIM barrels, Rossmann folds</td>
+<td style="text-align: left;">Disordered and low-complexity regions; transmembrane segments (odds ratio 11.6, p = 1e-21); secreted cysteine-rich proteins</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Staurosporine</td>
+<td style="text-align: left;">none</td>
+<td style="text-align: left;">Kinase-domain elements: the alphaC helix (standing for 149 near-identical features), glycine-rich phosphate loop, juxtacatalytic tail; catalytic and sequence-motif categories enriched (odds ratios 4.0-4.6)</td>
+</tr>
+</tbody>
+</table>
+<p>Each picture is mechanistically coherent. Salt weakens electrostatic interactions and strengthens hydrophobic ones, and the proteins whose HSPB1 association survives or grows with salt are exactly those built around hydrophobic transmembrane helices, while disordered, charged proteins are lost. Heat to 43 °C draws folded, globular enzymes into the co-chaperone pull-downs, the proteins that partly unfold when heated, and not disordered or membrane proteins, which have no fold to lose. Staurosporine removes proteins carrying a kinase domain. These are hypotheses that the features suggest, not tests of mechanism. The family analysis pointed the same way (transporters, kinases); the features name the underlying property directly and apply it across families.</p>
+<p><strong>Which kinases rise and which fall.</strong> Among about 300 kinases, the features marking the kinases staurosporine <em>enriches</em> pick out AGC kinases with lipid- or nucleotide-sensing regulatory domains: the PKC isoforms, PKN, PKD and PKG (cyclic-nucleotide-binding domain). Those marking kinases it <em>depletes</em> pick out CAMK2 and DAPK (acidic and basic regulatory linkers), MST, MAP3K and MAP4K (coiled-coil oligomerisation segments), and CDKs. Group by group, CAMK kinases fall most (-0.47 at 43 °C) and AGC kinases rise (+0.16).</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Within the kinases</th>
+<th style="text-align: right;">37 °C</th>
+<th style="text-align: right;">43 °C</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">SAE features, related kinases in training</td>
+<td style="text-align: right;">11.7 %</td>
+<td style="text-align: right;">38.1 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Embedding, related kinases in training</td>
+<td style="text-align: right;">9.3 %</td>
+<td style="text-align: right;">20.4 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">SAE features, whole kinase group held out</td>
+<td style="text-align: right;">1.2 %</td>
+<td style="text-align: right;">-0.8 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Kinase group label alone</td>
+<td style="text-align: right;">2.9 %</td>
+<td style="text-align: right;">8.2 %</td>
+</tr>
+</tbody>
+</table>
+<p>The SAE features describe kinase subfamilies better than the embedding does (38 % against 20 % at 43 °C), but they predict nothing for a kinase group never seen in training. Staurosporine’s direction is a subfamily property, which the features recognise, not a rule that carries across kinase groups.</p>
+<p><strong>The labels need checking.</strong> A feature’s label describes its strongest activations, which may lie in other proteins. Several of the best staurosporine predictors are labelled “beta-lactamase fold transpeptidase core”, “glycoside hydrolase catalytic cleft” or “small-residue transmembrane helix bundles”, yet in these data they fire above their threshold mostly on kinases, which is why they predict. Within the kinases, the features marking PKC isoforms carry labels such as “GIY-YIG nuclease motif” and “OB-fold ssDNA-binding module”. Comparing each feature’s active proteins with their UniProt annotation, as done here, is what makes the labels usable.</p>
 <h1 id="using-individual-samples-instead-of-replicate-means">Using individual samples instead of replicate means</h1>
 <p>Each protein’s measurements were also modelled sample by sample, with a separate noise level for each run and a noise level that rises for low-abundance proteins (4-fold from the most to the least abundant fifth). Three ways of letting that noise discount samples were compared against the plain replicate mean, in the same networks:</p>
 <table>
