@@ -139,3 +139,64 @@ def boot_diff(y, p1, p0, nb, rng):
         yy = y[s]
         d.append((((yy - p0[s]) ** 2).sum() - ((yy - p1[s]) ** 2).sum()) / ((yy - yy.mean()) ** 2).sum())
     return float(np.percentile(d, 2.5)), float(np.percentile(d, 97.5))
+
+
+# ---------------------------------------------------------------------------------------------
+# Multi-output ensembles, and the trunk as a feature extractor (ga10)
+# ---------------------------------------------------------------------------------------------
+def group_kfold(G, n=5):
+    """Largest groups first, each to the currently lightest fold (scikit-learn GroupKFold's rule)."""
+    ug, inv = np.unique(G, return_inverse=True)
+    cnt = np.bincount(inv)
+    load, g2f = np.zeros(n), np.zeros(len(ug), int)
+    for g in np.argsort(-cnt, kind="stable"):
+        f = int(np.argmin(load)); load[f] += cnt[g]; g2f[g] = f
+    fid = g2f[inv]
+    return fid
+
+
+def ens_hidden(net, X):
+    """Last hidden layer of every member, (E, N, h): the nonlinear 'trunk' before the linear head."""
+    x = X
+    for w, b in zip(list(net.W)[:-1], list(net.b)[:-1]):
+        x = F.gelu(torch.matmul(x, w) + b)
+    return x
+
+
+def train_ens(cfg, Xtr, Ytr, Xva, Yva, members=16, epochs=400, patience=25, batch=256):
+    """K-output ensemble (Y is (n, K), standardised per column), squared error averaged over
+    outputs; each member stops on its own mean validation R2 across outputs. Returns the network
+    with every member at its best epoch."""
+    dev = Xtr.device
+    E, K = members, Ytr.shape[1]
+    net = Ens(E, Xtr.shape[1], cfg["hidden"], K, cfg["drop"]).to(dev)
+    opt = torch.optim.AdamW(net.parameters(), lr=cfg.get("lr", 1e-3), weight_decay=cfg["wd"])
+    n = Ytr.shape[0]
+    best = torch.full((E,), -1e9, device=dev)
+    bad = torch.zeros(E, device=dev)
+    state = [p.detach().clone() for p in net.parameters()]
+    sst = ((Yva - Yva.mean(0)) ** 2).sum(0)                     # (K,)
+    for ep in range(epochs):
+        net.train()
+        perm = torch.argsort(torch.rand(E, n, device=dev), 1)
+        for i in range(0, n, batch):
+            idx = perm[:, i:i + batch]
+            l = ((net(Xtr[idx]) - Ytr[idx]) ** 2).mean()
+            opt.zero_grad(set_to_none=True)
+            l.backward()
+            opt.step()
+        net.eval()
+        with torch.no_grad():
+            sc = (1 - ((net(Xva) - Yva) ** 2).sum(1) / sst).mean(1)   # (E,) mean R2 over outputs
+            imp = sc > best + 1e-5
+            best = torch.where(imp, sc, best)
+            bad = torch.where(imp, torch.zeros_like(bad), bad + 1)
+            for sp, p in zip(state, net.parameters()):
+                sp.copy_(torch.where(imp.view(-1, *([1] * (p.dim() - 1))), p.detach(), sp))
+        if bool((bad >= patience).all()):
+            break
+    with torch.no_grad():
+        for sp, p in zip(state, net.parameters()):
+            p.copy_(sp)
+    net.eval()
+    return net

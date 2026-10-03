@@ -88,7 +88,9 @@
 <li><strong>Sequence predicts all three responses, and the heat response best.</strong> The embedding explains 2.3 times or more what amino-acid composition does, and already contains composition.</li>
 <li><strong>The responses are far from saturated.</strong> The best models reach 6-28 % of the variance against ceilings of 75-99 %, and the gap is not measurement noise.</li>
 <li><strong>A nonlinear readout helps where the signal is broad.</strong> An ensemble of small neural networks averaged with linear regression beats linear regression alone on salt and on heat, but not on staurosporine, whose signal is concentrated in a few kinase families.</li>
-<li><strong>Staurosporine acts on protein kinases.</strong> Kinases are specifically depleted from both co-chaperone pull-downs (p = 2e-20), while some, notably the PKC family, rise.</li>
+<li><strong>Staurosporine acts on protein kinases.</strong> Kinases are specifically depleted from both co-chaperone pull-downs (p = 2e-20), while some, notably the PKC family, rise. The 3.6 % of proteins that are kinases carry about half of the response’s variance.</li>
+<li><strong>One nonlinear model serves several temperatures.</strong> For heat, a network trained at 43 °C needs only a new linear readout to predict 37 °C. For staurosporine, a network trained at another temperature does as well as or better than the temperature’s own.</li>
+<li><strong>Part of what is predicted is the family.</strong> Half to three quarters of the model’s success on proteins in large families is getting the family’s average response right.</li>
 </ul>
 <h1 id="data-and-approach">Data and approach</h1>
 <p><strong>Salt titration.</strong> HSPB1 pull-downs from 7,184 proteins at 0, 75 and 150 mM salt, each as 2 technical x 5 biological replicates of log2 intensities. The fold change is the difference of biological-replicate means, kept when both conditions have at least 7 of 10 values (6,989 proteins at 75 mM, 6,695 at 150 mM).</p>
@@ -314,8 +316,235 @@
 </table>
 <p><em>Mean log2 fold change. Kinase shift: kinases minus all others, in standard deviations of the fold change; p from a Mann-Whitney test. Depleted 5 %: how over-represented kinases are among the 5 % most depleted proteins. Heat (control): the same comparison for the 43 vs 35 °C heat response.</em></p>
 <p>The most depleted kinases include FER, CAMK1, CAMKK2, CSK, CDK5, CHEK2, CDK2 and STK4 (down 2- to 6-fold). Kinases are also over-represented among the most enriched proteins: the PKC isoforms, PRKG1 and the PKN kinases rise. Staurosporine therefore shifts kinase-chaperone association in both directions, kinase by kinase.</p>
-<p>The embedding already encodes which proteins are kinases, and most of what it predicts at 35 and 37 °C lies outside them (6.0 % and 6.1 % on non-kinases alone). Which kinases go down and which go up is only weakly predictable from sequence (1-6.5 % across about 300 kinases).</p>
+<p><strong>Kinases dominate the response.</strong> The 295 kinases are 3.6 % of the proteins but, because their changes are so large, carry most of the variance, and most of what the model explains comes from them:</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Staurosporine</th>
+<th style="text-align: right;">Variance in kinases</th>
+<th style="text-align: right;">Explained, from kinases</th>
+<th style="text-align: right;">R2 within kinases</th>
+<th style="text-align: right;">R2, all others</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">35 °C</td>
+<td style="text-align: right;">44 %</td>
+<td style="text-align: right;">50 %</td>
+<td style="text-align: right;">3.5 %</td>
+<td style="text-align: right;">5.8 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">37 °C</td>
+<td style="text-align: right;">54 %</td>
+<td style="text-align: right;">62 %</td>
+<td style="text-align: right;">1.5 %</td>
+<td style="text-align: right;">6.6 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">43 °C</td>
+<td style="text-align: right;">63 %</td>
+<td style="text-align: right;">81 %</td>
+<td style="text-align: right;">1.3 %</td>
+<td style="text-align: right;">3.2 %</td>
+</tr>
+</tbody>
+</table>
+<p>The model captures the kinases mainly by knowing that kinases as a class go down. Which kinases go down and which go up it barely predicts (1-3.5 % within the kinases); among all other proteins it explains 3-7 % of a much smaller variance.</p>
 <p><strong>No nonlinear gain.</strong> Unlike salt and heat, the neural-network readout does not beat ridge reliably here (-13, -2 and +7 points at the three temperatures). Because the signal sits in a few kinase families, which families fall in the selection set decides which model looks best. The 43 °C gain comes almost entirely from the PKC family, whose held-out isoforms the network predicts from their relatives. Ridge regression remains the model to use for this response.</p>
+<h1 id="the-same-proteins-at-every-temperature">The same proteins at every temperature?</h1>
+<p>For each pair of responses on the same proteins: how similar the true responses are, how similar the model’s predictions are, and whether the same proteins are well explained. A protein’s share of the explained variance is how much the model reduces its squared deviation from the mean; these shares add up to R2.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Pair</th>
+<th style="text-align: right;">r, responses</th>
+<th style="text-align: right;">r, predictions</th>
+<th style="text-align: right;">r, explained</th>
+<th style="text-align: right;">Top-5 % overlap</th>
+<th style="text-align: right;">R2</th>
+<th style="text-align: right;">R2 from other</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Salt, 75 / 150 mM</td>
+<td style="text-align: right;">0.91</td>
+<td style="text-align: right;">0.91</td>
+<td style="text-align: right;">0.76</td>
+<td style="text-align: right;">14x</td>
+<td style="text-align: right;">20.4 %</td>
+<td style="text-align: right;">17.8 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Heat, 37 / 43 °C</td>
+<td style="text-align: right;">0.68</td>
+<td style="text-align: right;">0.80</td>
+<td style="text-align: right;">0.49</td>
+<td style="text-align: right;">6.3x</td>
+<td style="text-align: right;">27.1 %</td>
+<td style="text-align: right;">17.0 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Staurosporine, 35 / 37 °C</td>
+<td style="text-align: right;">0.54</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">0.12</td>
+<td style="text-align: right;">6.9x</td>
+<td style="text-align: right;">8.3 %</td>
+<td style="text-align: right;">1.6 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Staurosporine, 37 / 43 °C</td>
+<td style="text-align: right;">0.44</td>
+<td style="text-align: right;">0.40</td>
+<td style="text-align: right;">0.07</td>
+<td style="text-align: right;">6.5x</td>
+<td style="text-align: right;">7.1 %</td>
+<td style="text-align: right;">1.9 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Staurosporine, 35 / 43 °C</td>
+<td style="text-align: right;">0.47</td>
+<td style="text-align: right;">0.72</td>
+<td style="text-align: right;">0.18</td>
+<td style="text-align: right;">7.4x</td>
+<td style="text-align: right;">7.1 %</td>
+<td style="text-align: right;">6.1 %</td>
+</tr>
+</tbody>
+</table>
+<p><em>r, explained: correlation of the proteins’ shares of explained variance. Top-5 % overlap: how often the 5 % best-explained proteins coincide, relative to chance. R2 is for the second response of each pair; “R2 from other” scores the first response’s predictions, rescaled linearly, against it.</em></p>
+<ul>
+<li><strong>Salt:</strong> the same proteins at both doses. The 75 mM predictions alone explain 17.8 % of the 150 mM response.</li>
+<li><strong>Heat:</strong> largely the same proteins. The predictions at 37 and 43 °C correlate at 0.80, the best-explained 5 % overlap six-fold beyond chance, and the 37 °C predictions explain 17 % of the 43 °C response, against 27 % for its own model.</li>
+<li><strong>Staurosporine:</strong> different proteins at each temperature, apart from a small shared core. The responses correlate at 0.44-0.54, but which proteins the model explains barely carries over (0.07-0.18), and one temperature’s predictions explain only 1.6-6 % of another’s.</li>
+</ul>
+<h1 id="one-nonlinear-model-different-linear-readouts">One nonlinear model, different linear readouts?</h1>
+<p>Two tests, on the proteins kept at every temperature, with a fixed network configuration:</p>
+<ul>
+<li><strong>One network with a separate linear output per temperature</strong>, trained jointly, against separate networks.</li>
+<li><strong>A network trained on one temperature, frozen, with a new linear readout fitted for another.</strong> Each is compared with the second temperature’s own network, read out the same way.</li>
+</ul>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: right;">Shared vs separate networks</th>
+<th style="text-align: right;">Network from the other temperature vs own</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Heat, 37 vs 35 °C</td>
+<td style="text-align: right;">+0.1 [-0.2, +0.5]</td>
+<td style="text-align: right;">from 43 °C: +0.4 [-0.6, +1.4]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Heat, 43 vs 35 °C</td>
+<td style="text-align: right;">-0.4 [-0.8, +0.0]</td>
+<td style="text-align: right;">from 37 °C: <strong>-3.4 [-4.7, -2.1]</strong></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Staurosporine, 35 °C</td>
+<td style="text-align: right;">-0.8 [-1.8, +0.3]</td>
+<td style="text-align: right;">from 37 °C: -0.4 [-1.8, +1.3]; from 43 °C: +1.5 [-0.4, +3.6]</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Staurosporine, 37 °C</td>
+<td style="text-align: right;">+0.2 [-0.5, +1.0]</td>
+<td style="text-align: right;">from 35 °C: <strong>+1.6 [+0.4, +3.1]</strong>; from 43 °C: <strong>+3.5 [+0.9, +6.4]</strong></td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Staurosporine, 43 °C</td>
+<td style="text-align: right;">+2.8 [-0.5, +6.2]</td>
+<td style="text-align: right;">from 35 °C: -0.5 [-5.2, +4.9]; from 37 °C: +0.0 [-3.8, +4.5]</td>
+</tr>
+</tbody>
+</table>
+<p><em>Change in percent of variance explained, with 95 % intervals over sequence clusters.</em></p>
+<p><strong>For heat, yes, one nonlinear model serves both temperatures.</strong> A single network with two linear outputs matches separate networks to within 0.4 points. A network trained only on the 43 °C response, frozen and given a new linear readout, predicts the 37 °C response as well as a network trained on 37 °C. The reverse fails: the 37 °C network loses 3.4 points on the 43 °C response. The 43 °C response contains the 37 °C pattern and more.</p>
+<p><strong>For staurosporine, a network from another temperature is never worse and sometimes better.</strong> For 37 °C, networks trained at 35 or 43 °C beat 37 °C’s own, by 1.6 and 3.5 points. That is the pattern expected if one sequence determinant underlies all three temperatures and each temperature measures it with independent noise. The per-protein differences between temperatures above then reflect that noise more than different biology.</p>
+<h1 id="protein-families">Protein families</h1>
+<p>Proteins were grouped by UniProt family (top level; families of at least 15 detected members), and by subcellular location.</p>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: left;"></th>
+<th style="text-align: right;">Salt, 150 mM</th>
+<th style="text-align: right;">Heat, 43 vs 35 °C</th>
+<th style="text-align: right;">Staurosporine, 37 °C</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Proteins in families of 15 or more</td>
+<td style="text-align: right;">972 (23 families)</td>
+<td style="text-align: right;">1,327 (34)</td>
+<td style="text-align: right;">1,308 (34)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Share of the true response that lies between families</td>
+<td style="text-align: right;">16 %</td>
+<td style="text-align: right;">20 %</td>
+<td style="text-align: right;">6 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Model, R2 on these proteins</td>
+<td style="text-align: right;">20.6 %</td>
+<td style="text-align: right;">29.3 %</td>
+<td style="text-align: right;">6.5 %</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">R2 from each family’s average prediction alone</td>
+<td style="text-align: right;">13.6 %</td>
+<td style="text-align: right;">14.7 %</td>
+<td style="text-align: right;">4.9 %</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Correlation within families</td>
+<td style="text-align: right;">0.29</td>
+<td style="text-align: right;">0.43</td>
+<td style="text-align: right;">0.13</td>
+</tr>
+</tbody>
+</table>
+<p>For proteins in large families, half to three quarters of what the model explains comes from getting each family’s average response right; the rest comes from ranking proteins within a family, which works best for heat (r = 0.43).</p>
+<p><strong>Best and worst predicted families</strong> (share of their deviation from the overall mean explained):</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">Response</th>
+<th style="text-align: left;">Best predicted</th>
+<th style="text-align: left;">Worst predicted</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">Salt, 150 mM</td>
+<td style="text-align: left;">mitochondrial carriers (88 %, up), KRAB zinc fingers (49 %, up), class I aminoacyl-tRNA synthetases (52 %, down), ABC transporters (42 %)</td>
+<td style="text-align: left;">small GTPases, DEAD-box and other helicases, myosins and kinesins (below 0 %)</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">Heat, 43 vs 35 °C</td>
+<td style="text-align: left;">mitochondrial carriers (77 %, down), MFS and P-type transporters (67 %, down), deubiquitinases (57 %, up; within-family r = 0.79), dynamins (53 %, up), class II aminoacyl-tRNA synthetases (48 %, up)</td>
+<td style="text-align: left;">tubulins (true down, predicted up), cyclins, actins, ABC transporters</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">Staurosporine, 37 °C</td>
+<td style="text-align: left;">protein kinases (3.6 % of proteins, 62 % of what is explained), ATP-dependent AMP-binding enzymes, translation GTPases, AAA ATPases</td>
+<td style="text-align: left;">dynamins, SAM methyltransferases, actins</td>
+</tr>
+</tbody>
+</table>
+<p>Membrane transporters stand out in both salt and heat, in opposite directions: they rise in the HSPB1 pull-down with salt and fall in the co-chaperone pull-downs with heat, and in both the model predicts the family average well. Cytoskeletal structural proteins (tubulin, actin) are the most consistently mispredicted.</p>
+<p><strong>By compartment</strong> the heat response is predicted about equally well everywhere (20-30 %, lowest for the cytoskeleton). For staurosporine, endoplasmic-reticulum proteins are predicted best (17 %, within r = 0.41) and secreted proteins worst (about 0 %). For salt, mitochondrial, Golgi and membrane proteins (25-28 %) are predicted better than cytoplasmic and cytoskeletal ones (17 %).</p>
 <h1 id="using-individual-samples-instead-of-replicate-means">Using individual samples instead of replicate means</h1>
 <p>Each protein’s measurements were also modelled sample by sample, with a separate noise level for each run and a noise level that rises for low-abundance proteins (4-fold from the most to the least abundant fifth). Three ways of letting that noise discount samples were compared against the plain replicate mean, in the same networks:</p>
 <table>
