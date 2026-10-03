@@ -24,6 +24,7 @@ proteins whose sequence families were held out of training.
 | Heat, 43 vs 35 °C | DNAJA1, DNAJB11 | 99.2 % | **27.5 %** | 8.9 % |
 | Heat, 37 vs 35 °C | DNAJA1, DNAJB11 | 86.5 % | **12.2 %** | 3.5 % |
 | Staurosporine, 37 °C | DNAJA1, DNAJB11 | 75.5 % | **6.5 %** | 0.3 % |
+| DNAJB11 vs DNAJA1 preference | both | 95.9 % | **45.6 %** | 31.7 % |
 
 *All values are percent of variance explained in held-out proteins. The ceiling is the share of
 the variance that is reproducible between independent sets of biological replicates, and so the
@@ -44,6 +45,10 @@ most any predictor could explain.*
   temperature does as well as or better than the temperature's own.
 - **Part of what is predicted is the family.** Half to three quarters of the model's success on
   proteins in large families is getting the family's average response right.
+- **The two co-chaperones differ in clients, not in their responses.** Which proteins DNAJB11 rather
+  than DNAJA1 pulls down is the most predictable quantity here (46 % of a 96 % ceiling): secretory and
+  membrane proteins for DNAJB11, nuclear RNA-processing proteins with charged disordered regions for
+  DNAJA1. Heat shrinks this preference uniformly; staurosporine acts identically on both.
 - **The sparse-autoencoder features make the predictions readable.** They keep 90-114 % of the
   embedding's predictive power. Salt is predicted by transmembrane-helix features, heat by folded
   enzyme-core features against disorder and membrane features, and staurosporine by kinase-domain
@@ -356,6 +361,57 @@ bundles", yet in these data they fire above their threshold mostly on kinases, w
 predict. Within the kinases, the features marking PKC isoforms carry labels such as "GIY-YIG nuclease
 motif" and "OB-fold ssDNA-binding module". Comparing each feature's active proteins with their UniProt
 annotation, as done here, is what makes the labels usable.
+
+# How the two co-chaperones differ
+
+The DNAJA1 and DNAJB11 pull-downs can differ in which proteins they contain, and in how they respond
+to heat or staurosporine. Each difference was measured on the same proteins, without the baits
+themselves, with its own split-half ceiling.
+
+| DNAJB11 minus DNAJA1 | sd (log2) | Ceiling | Composition | ESMC L80 | SAE |
+|:--|--:|--:|--:|--:|--:|
+| Preference, all temperatures | 0.41 | 95.9 % | 31.7 % | **45.6 %** | 36.6 % |
+| Preference at 35 °C | 0.54 | 90.8 % | 30.1 % | 41.0 % | 36.6 % |
+| Preference at 43 °C | 0.36 | 82.8 % | 23.7 % | 35.1 % | 24.9 % |
+| Heat response, 43 vs 35 °C | 0.41 | 75.6 % | 16.8 % | 22.6 % | 22.8 % |
+| Staurosporine response | 0.19-0.22 | ~0 % | | | |
+
+*Preference: how much more of a protein the DNAJB11 pull-down contains than the DNAJA1 pull-down.*
+
+**Which proteins each co-chaperone prefers is the most sequence-predictable quantity in either
+experiment**: the embedding explains 46 % of it, half of a 96 % ceiling, and amino-acid composition
+alone a third. Staurosporine acts identically on both: their responses differ by nothing reproducible.
+
+**DNAJB11 prefers secretory-pathway and membrane proteins; DNAJA1 prefers nuclear RNA-processing
+proteins with charged disordered regions.** Mean preference (log2, > 0 toward DNAJB11):
+
+| Toward DNAJB11 | | Toward DNAJA1 | |
+|:--|--:|:--|--:|
+| Immunoglobulin domain | +0.40 | Citrullination | -0.75 |
+| Receptor | +0.39 | Ribosomal protein | -0.45 |
+| Signal peptide | +0.35 (p 6e-88) | Ribonucleoprotein | -0.42 (p 3e-58) |
+| Transmembrane | +0.32 (p 1e-157) | rRNA processing | -0.38 |
+| Glycoprotein | +0.31 | Spliceosome | -0.35 |
+| Disulfide bond | +0.29 | Helicase | -0.31 |
+| Lysosome / endosome | +0.21 | SR splicing factors | -0.62 |
+| Golgi | +0.18 | KRAB zinc fingers | -0.46 |
+| Endoplasmic reticulum | +0.17 | Nucleus | -0.15 (p 1e-158) |
+
+This matches what the two proteins are: DNAJB11 (ERdj3) is an ER-lumenal J-protein that binds
+unfolded secretory and membrane proteins, and DNAJA1 a cytosolic and nuclear one. The SAE features
+say the same at the level of sequence elements. The strongest features of DNAJA1-preferring proteins
+are all disorder and charge features ("charged disordered low-complexity tracts", "KR-rich NLS-like
+motifs", "RS/SR phospho-regulated IDRs"; compositional-bias and disorder categories enriched,
+p = 1e-11), and those of DNAJB11-preferring proteins are membrane features ("cytosolic juxtamembrane
+anchor motif", standing for 18 near-identical features; membrane category p = 2e-31). The preference
+is both between and within families: family averages account for 60 % of what the model explains on
+proteins in large families, and the within-family correlation is 0.56, the highest of any response.
+
+**With heat the two pull-downs converge, uniformly.** At 43 °C each protein keeps about 40 % of its
+35 °C preference. That shrinkage accounts for the whole difference between the two heat responses:
+removing it leaves a remainder with no reliability (-0.03). The proteins that appear to move toward
+one co-chaperone with heat are simply those that preferred the other at 35 °C; heat weakens the
+distinction without reassigning particular proteins.
 
 # Using individual samples instead of replicate means
 
