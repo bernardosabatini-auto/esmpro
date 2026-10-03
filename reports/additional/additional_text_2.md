@@ -23,10 +23,12 @@ kinases, 0.95 and 0.93 for the comparisons with Fabian), giving 374 kinases with
 (median 62 nM; 30 not bound at 10 µM). 239-255 of the kinases in each GA_33 staurosporine target
 have a Kd.
 
-The intended second test, against each kinase's dependence on the HSP90-CDC37 chaperone system
-(Taipale et al. 2012, *Cell*), could not be run: the supplementary table is served only behind a
-browser check, both on PubMed Central and on the MIT repository, so it cannot be fetched by script.
-It is the natural next test and is listed under next steps.
+Chaperone client strength comes from Taipale et al. 2014 (*Cell* 158:434, "A quantitative chaperone
+interaction network reveals the architecture of cellular protein homeostasis pathways"; supplementary
+table NIHMS605110-supplement-02, provided by hand): LUMIER interaction scores of 713 client proteins
+against 60 chaperones and co-chaperones, including CDC37, HSP90AB1 and HSP90AA1 (scores above 7 are
+significant). 512 clients match a UniProt accession by gene symbol. The kinome-wide client survey of
+Taipale et al. 2012 could not be obtained (its supplement is served behind a browser check).
 
 # Results
 
@@ -93,6 +95,25 @@ Affinity and pull-down level contribute independently, and the level is the stro
 proteins the level does not predict the staurosporine response (rho -0.07; 0.00 from disjoint
 replicates), and the kinase depletion is unchanged after adjusting for it (-0.60, -0.90 and -0.98 sd).
 
+
+**5. Chaperone client strength: underpowered, and the trend runs the other way.** Only about 40
+GA_33 kinases have Taipale 2014 scores, because that network focused on other client classes. Among
+them, stronger CDC37 and HSP90 clients lose *less* co-chaperone association under staurosporine,
+opposite to what release from the HSP90-CDC37 system would predict:
+
+| Spearman rho with the response (n) | CDC37 | HSP90AB1 | HSP90AA1 | HSPA8 | HSPB1 |
+|:--|--:|--:|--:|--:|--:|
+| 35 °C (41) | +0.22 (p 0.16) | +0.21 (0.19) | +0.23 (0.15) | -0.02 (0.91) | +0.10 (0.56) |
+| 37 °C (40) | +0.25 (0.11) | +0.26 (0.11) | +0.24 (0.14) | +0.09 (0.58) | +0.10 (0.54) |
+| 43 °C (42) | +0.29 (0.06) | +0.31 (0.049) | +0.23 (0.16) | +0.18 (0.27) | +0.10 (0.55) |
+
+None survives correction for the 15 tests. The kinase groups show the same direction: TKL and
+tyrosine kinases are the strongest CDC37 clients (median scores 33 and 10) and barely change, while
+CMGC, CAMK and STE kinases are weak clients (0.4-2.7) and the most depleted. CDC37 client strength is
+also unrelated to each kinase's level in the control pull-downs (rho +0.09, +0.10, -0.15), so it gives
+no support to reading that level as chaperone engagement. A joint model with Kd, level and CDC37 score
+cannot be estimated reliably on 32-34 kinases.
+
 # Interpretation
 
 The kinase depletion behaves as drug-driven release from the co-chaperones would: it follows binding
@@ -118,16 +139,19 @@ mechanistically different.
 - **AGC kinases.** Their rise is clear but unexplained. One possibility to test: ATP-site inhibitors are
   known to change the regulatory state of some AGC kinases (for example by protecting activation-loop
   phosphorylation), which could alter their chaperone engagement in the opposite direction.
-- **Not done.** The HSP90-CDC37 client-strength comparison (Taipale et al. 2012), because the data
-  could not be downloaded by script.
+- **Client strength.** The Taipale 2014 scores cover only ~40 of the kinases. They do not support
+  release from the HSP90-CDC37 system specifically (the trend is the opposite, not significant), nor
+  the reading of pull-down level as chaperone engagement. The co-chaperones measured here, DNAJA1 and
+  DNAJB11, act upstream of HSP90, so the two need not move together. The 2012 kinome-wide survey
+  (about 300 kinases) would give a powered test.
 
 # Next steps
 
-1. HSP90-CDC37 client strength (Taipale et al. 2012, *Cell* 150:987, Table S1): does it predict
-   depletion beyond affinity and pull-down level?
+1. HSP90-CDC37 client strength for the full kinome (Taipale et al. 2012, *Cell* 150:987): the 2014
+   table covers too few of these kinases to decide.
 2. The input lysate: depletion from the pull-down relative to depletion from the lysate.
 
 # Methods files
 
-`code/ad02_kinase_affinity.py`; ChEMBL extracts in `data/external/kinase/`; results in
+`code/ad02_kinase_affinity.py`, `code/ad02b_taipale.py`; ChEMBL extracts in `data/external/kinase/`; results in
 `data/external/kinase/ad02_results.json`.
