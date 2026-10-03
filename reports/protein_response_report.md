@@ -1,452 +1,322 @@
 ---
-title: "Predicting chaperone-interactome responses from protein sequence: salt, heat and staurosporine"
+title: "Predicting how chaperone binding responds to salt, heat and staurosporine from protein sequence"
 date: "3 October 2026"
 geometry: margin=2.2cm
 fontsize: 10pt
 colorlinks: true
 header-includes:
-  - \usepackage{booktabs}
   - \usepackage{float}
   - \renewcommand{\arraystretch}{1.15}
 ---
 
 # Summary
 
-Two mass-spectrometry pull-down experiments were used to ask how well a protein's own sequence
-predicts how its association with a chaperone changes under a perturbation. Each protein is
-represented by the ESMC-6B protein language model, and its log2 fold change is predicted on
-proteins whose sequence families were held out of training.
+Recombinant, tagged chaperones were added to a human cell lysate and pulled down with the proteins
+they bind, under different conditions applied to the lysate: salt (HSPB1), and temperature and the
+kinase inhibitor staurosporine (DNAJA1 and DNAJB11). Mass spectrometry measured how much of each
+protein each pull-down contained. The question is how well a protein's sequence predicts how its
+binding changes, and what the predictions reveal.
 
-| Response | Pull-down | Ceiling | Best sequence model | Composition alone |
+| Response | Bait | Ceiling | Sequence | Composition |
 |:--|:--|--:|--:|--:|
-| Salt, 150 vs 0 mM | HSPB1 | 99.3 % | **20.4 %** | 7.5 % |
-| Salt, 75 vs 0 mM | HSPB1 | 98.6 % | **17.2 %** | 6.2 % |
-| Heat, 43 vs 35 °C | DNAJA1, DNAJB11 | 99.2 % | **27.5 %** | 8.9 % |
-| Heat, 37 vs 35 °C | DNAJA1, DNAJB11 | 86.5 % | **12.2 %** | 3.5 % |
-| Staurosporine, 37 °C | DNAJA1, DNAJB11 | 75.5 % | **6.5 %** | 0.3 % |
-| DNAJB11 vs DNAJA1 preference | both | 95.9 % | **45.6 %** | 31.7 % |
+| Co-chaperone preference | DNAJB11 vs DNAJA1 | 96 % | **49 %** | 32 % |
+| Heat, 43 vs 35 °C | DNAJA1, DNAJB11 | 99 % | **27 %** | 9 % |
+| Salt, 150 vs 0 mM | HSPB1 | 99 % | **20 %** | 8 % |
+| Salt, 75 vs 0 mM | HSPB1 | 99 % | **18 %** | 6 % |
+| Heat, 37 vs 35 °C | DNAJA1, DNAJB11 | 87 % | **13 %** | 4 % |
+| Staurosporine, 37 °C | DNAJA1, DNAJB11 | 76 % | **7 %** | 0 % |
 
-*All values are percent of variance explained in held-out proteins. The ceiling is the share of
-the variance that is reproducible between independent sets of biological replicates, and so the
-most any predictor could explain.*
+*Percent of variance explained on proteins whose sequence families were held out of training, by the
+best sequence model and by the 20 amino-acid fractions alone. The ceiling is the part of the variance
+that is reproducible between independent replicates, and so the most any predictor could explain.*
 
-- **Sequence predicts all three responses, and the heat response best.** The embedding explains
-  2.3 times or more what amino-acid composition does, and already contains composition.
-- **The responses are far from saturated.** The best models reach 6-28 % of the variance against
-  ceilings of 75-99 %, and the gap is not measurement noise.
-- **A nonlinear readout helps where the signal is broad.** An ensemble of small neural networks
-  averaged with linear regression beats linear regression alone on salt and on heat, but not on
-  staurosporine, whose signal is concentrated in a few kinase families.
-- **Staurosporine acts on protein kinases.** Kinases are specifically depleted from both
-  co-chaperone pull-downs (p = 2e-20), while some, notably the PKC family, rise. The 3.6 % of
-  proteins that are kinases carry about half of the response's variance.
-- **One nonlinear model serves several temperatures.** For heat, a network trained at 43 °C needs
-  only a new linear readout to predict 37 °C. For staurosporine, a network trained at another
-  temperature does as well as or better than the temperature's own.
-- **Part of what is predicted is the family.** Half to three quarters of the model's success on
-  proteins in large families is getting the family's average response right.
-- **The two co-chaperones differ in clients, not in their responses.** Which proteins DNAJB11 rather
-  than DNAJA1 pulls down is the most predictable quantity here (46 % of a 96 % ceiling): secretory and
-  membrane proteins for DNAJB11, nuclear RNA-processing proteins with charged disordered regions for
-  DNAJA1. Heat shrinks this preference uniformly; staurosporine acts identically on both.
-- **The sparse-autoencoder features make the predictions readable.** They keep 90-114 % of the
-  embedding's predictive power. Salt is predicted by transmembrane-helix features, heat by folded
-  enzyme-core features against disorder and membrane features, and staurosporine by kinase-domain
-  features.
+- **Sequence predicts every response, well beyond amino-acid composition.** The best results come
+  from reading several layers of the ESMC-6B protein language model at once.
+- **Each response has its own, interpretable determinants.** Salt spares proteins with transmembrane
+  helices. Heat recruits folded cytoplasmic proteins and loses disordered and membrane proteins.
+  Staurosporine removes kinases, in proportion to how tightly it binds them. DNAJB11 prefers
+  secretory and membrane proteins, DNAJA1 nuclear proteins with charged disordered regions.
+- **Thermal stability shapes the heat response through a window.** Proteins that melt a few degrees
+  above 43 °C gain the most binding; less stable and more stable proteins gain less. Stability
+  matters, but explains little of the response overall.
+- **The responses are largely independent of one another.** There is no single protein property
+  behind them all.
 
-# Data and approach
+# 1. The experiments
 
-**Salt titration.** HSPB1 pull-downs from 7,184 proteins at 0, 75 and 150 mM salt, each as 2
-technical x 5 biological replicates of log2 intensities. The fold change is the difference of
-biological-replicate means, kept when both conditions have at least 7 of 10 values (6,989 proteins
-at 75 mM, 6,695 at 150 mM).
+**Design.** All manipulations were made in vitro. A tagged chaperone was added to cell lysate,
+incubated under the condition of interest, and recovered with its bound proteins.
 
-**GA_33.** DNAJA1 and DNAJB11 pull-downs at 35, 37 and 43 °C, with and without 10 µM
-staurosporine, 6 biological replicates each (9,871 protein groups). Each run is median-normalised,
-so fold changes are relative to the pull-down as a whole. Heat responses are measured without
-staurosporine; staurosporine responses are measured at each temperature. Proteins are kept when
-both groups have at least 4 of 6 values. The two co-chaperones show essentially the same heat and
-staurosporine responses (correlations 0.83-1.0 after correcting for noise), so their average is
-used as the main target: the same quantity measured with twice the replicates.
+| Experiment | Bait | Conditions (in lysate) | Replicates | Proteins |
+|:--|:--|:--|:--|--:|
+| Salt titration | HSPB1 | 0, 75, 150 mM salt | 5 x 2 technical | 7,184 |
+| GA_33 | DNAJA1, DNAJB11 | 35/37/43 °C, +/- 10 µM staurosporine | 6 | 9,871 |
 
-**Ceiling.** For each fold change, the biological replicates are split into two disjoint halves,
-the fold change is computed from each, and the agreement is corrected to the full replicate
-count. This reliability is the largest fraction of variance any predictor could explain.
+Because everything happens in lysate, there is no cellular stress response, synthesis, degradation
+or relocalisation: a change in a pull-down reflects a change in binding, or in how much of a protein
+stays soluble during the incubation. The two co-chaperones meet the same mixture of proteins, so any
+difference between them is a difference in what they bind, not in where they normally live
+(DNAJB11 is an ER-lumenal protein, DNAJA1 a cytosolic and nuclear one).
 
-**Prediction.** Each protein's sequence (all but two digestion enzymes resolved from UniProt) is
-embedded with ESMC-6B and averaged over residues; long proteins are embedded in overlapping
-windows. Proteins are clustered at 30 % sequence identity, and every model is scored by 5-fold
-cross-validation in which whole clusters are held out, so predictions are never made from a close
-relative. Models: ridge regression, and an ensemble of 16 two-layer neural networks selected on an
-inner held-out set of clusters. Intervals are 95 % bootstrap intervals over sequence clusters.
+**What is measured.** For each protein, the change in its log2 intensity in the pull-down between two
+conditions (a log2 fold change), averaged over biological replicates. A protein is kept when it is
+detected in most replicates of both conditions. GA_33 runs are median-normalised; the main
+conclusions are unchanged under four other normalisations. In GA_33 the heat and staurosporine
+responses are averaged over the two co-chaperones, which respond almost identically (correlations
+0.83-1.0 after correcting for noise).
 
-# Salt sensitivity (HSPB1)
+**Measurement ceiling.** Each fold change was recomputed from two disjoint halves of the biological
+replicates; their agreement, corrected to the full replicate count, is the reliability. It is
+99 % for salt and for heat at 43 °C, so these responses are measured almost without noise.
+Staurosporine changes binding only about 1.15-fold, and a quarter of its variance is replicate
+noise (ceiling 72-76 %).
 
-Salt weakens electrostatic interactions, so the fold change measures how salt-sensitive each
-protein's association with HSPB1 is. A typical protein moves 1.6-fold at 75 mM and 1.9-fold at
-150 mM, and these changes are highly reproducible: 99 % of the variance is explainable in
-principle.
+# 2. Predicting a response from sequence
 
-**What sequence explains.** Each row adds features to the one above.
+Each protein's sequence is embedded with ESMC-6B, a protein language model, and averaged over
+residues. Ridge regression predicts the response from the embedding. Proteins are grouped into
+families at 30 % sequence identity, and every model is scored on families it has never seen, so a
+prediction is never made from a close relative. Intervals resample those families.
 
-| Features | 75 mM | 150 mM |
+- **Composition first.** The 20 amino-acid fractions explain 6-9 % of the salt and heat responses and
+  32 % of the co-chaperone preference. Charge, hydrophobicity and charge patterning add almost nothing
+  beyond composition. The embedding explains 2-3 times as much, and contains composition.
+- **Several layers beat one.** The most predictive layer differs by response (the final layer for
+  heat and the preference, layer 50 for salt). Combining nine layers with learned weights beats the
+  best single layer on every response, by 0.7 to 3 points, and gives the figures in the summary table.
+- **Linear is nearly enough.** A small neural network averaged with ridge adds 1-2 points for heat
+  and salt; it does not help for staurosporine, whose signal sits in a few kinase families.
+- **Sparse-autoencoder features make the predictions readable.** Biohub's sparse autoencoder for
+  ESMC-6B (layer 60) decomposes each residue into 64 active features out of 16,384, each with an
+  annotated meaning. These features keep 90-114 % of the embedding's predictive power, and the
+  features that predict each response are reported below. Each label was checked against the
+  annotations of the proteins it actually fires on in these data.
+
+# 3. Salt
+
+Salt weakens electrostatic interactions and strengthens hydrophobic ones. A typical protein's HSPB1
+binding changes 1.6-fold at 75 mM and 1.9-fold at 150 mM.
+
+| Features (each row adds to the one above) | 75 mM | 150 mM |
 |:--|--:|--:|
 | Protein length | 0.0 % | 0.0 % |
-| Amino-acid composition (20 fractions) | 6.2 % | 7.5 % |
-| + length | 6.4 % | 8.0 % |
+| Amino-acid composition | 6.2 % | 7.5 % |
 | + charge, hydrophobicity, charge patterning | 6.6 % | 8.2 % |
-| ESMC embedding (final layer) | 15.3 % | 17.0 % |
-| ESMC embedding + composition | 15.3 % | 17.1 % |
-| *Measurement ceiling* | *98.6 %* | *99.3 %* |
+| ESMC embedding, one layer | 16.0 % | 18.2 % |
+| ESMC embedding, nine layers combined | **18.0 %** | **20.4 %** |
 
-Composition alone explains 6-8 %. Charge and hydrophobicity add almost nothing beyond it, which
-for a salt-disruption experiment is notable: the obvious electrostatic descriptors carry no
-information that the raw composition lacks. The embedding adds a further +9.1 points at 75 mM
-[7.7, 10.5] and +9.6 at 150 mM [8.2, 10.9], and appending composition to it gains nothing, so the
-embedding contains composition and more. Length explains nothing. Nearest-neighbour lookup in the
-same embedding explains only 6-7 %, so the signal is not simply family resemblance.
+**Transmembrane helices resist salt.** Of the 100 sparse-autoencoder features most associated with
+the salt response, 94 describe membrane helices ("transmembrane helix exit signature", "multipass
+membrane helices"; 13 % of random features; p = 6e-58), all on the side of proteins whose HSPB1 binding
+survives or grows with salt. Proteins with a transmembrane helix gain 0.46 log2 relative to others;
+long disordered regions go the other way. This is what salt would do to the two kinds of
+interaction: binding through hydrophobic helices strengthens, binding through charged disordered
+regions weakens.
 
-**Which layer.** Of nine evenly spaced layers of the 81, layer 50 predicts salt sensitivity best
-(16.0 % and 18.2 %), about one point above the final layer; the deepest layers track the protein's
-abundance rather than its salt response.
+114 proteins leave the HSPB1 pull-down entirely at 150 mM (5 enter). A model trained without them
+or their relatives predicts them to fall (AUC 0.66 against proteins of matched abundance).
 
-**Linear versus nonlinear readout** (ESMC layer 50):
+# 4. Heat
 
-| | 75 mM | 150 mM |
+Raising the temperature of the lysate from 35 to 43 °C changes co-chaperone binding about 2.2-fold
+for a typical protein, and overall the pull-downs contain about 1.9 times more protein (run medians
++0.9 log2), which with equal inputs means more total binding at 43 °C. The normalised responses below
+describe how each protein's share of the binding changes.
+
+| Heat response | 43 vs 35 °C | 37 vs 35 °C |
 |:--|--:|--:|
-| Ridge regression | 16.0 % | 18.2 % |
-| Neural-network ensemble | 16.5 % | 20.3 % |
-| Ensemble and ridge averaged | **17.2 %** | **20.4 %** |
-| Gain of the average over ridge | +1.2 [+0.6, +1.7] | +2.2 [+1.6, +2.8] |
+| Amino-acid composition | 8.9 % | 3.5 % |
+| ESMC, one layer (final) | 25.7 % | 11.4 % |
+| ESMC, nine layers combined | **27.4 %** | **12.7 %** |
 
-The ensemble alone gains +0.5 [-0.7, +1.7] points at 75 mM and +2.2 [+1.0, +3.4] at 150 mM.
-Averaging it with ridge is positive at both doses. Fitting the two doses jointly, although they
-correlate at 0.91, gains nothing over fitting them separately.
+**Folded cytoplasmic proteins are recruited; disordered and membrane proteins are lost.** The
+features that rise are those of folded enzyme cores (catalase, isocitrate and aldehyde dehydrogenases,
+enolase, TIM barrels, Rossmann folds; structural-motif features over-represented, odds ratio 5.5). Those that fall
+describe long disordered and low-complexity regions and transmembrane segments (membrane features over-represented,
+odds ratio 11.6).
 
-# Heat response (DNAJA1 and DNAJB11)
+**A protein's starting level matters.** Proteins plentiful in the 35 °C pull-down tend to lose share
+at 43 °C, and scarce ones to gain (correlation -0.43; the starting level explains 16.5 % of the
+response). This is not shared measurement noise: taking the starting level and the response from
+different replicates gives the same correlation. It is regression to the mean in the biological
+sense: the 35 °C and 43 °C binding profiles agree only partly (r = 0.6), so proteins that dominate
+one tend to dominate the other less. In vitro there is also a direct reason: a fixed amount of
+chaperone means that new clients at 43 °C compete with the old. Sequence does not predict the
+response through the starting level: with the level removed, the embedding explains more of what is
+left (28.9 %).
 
-Raising the temperature from 35 to 43 °C changes what both co-chaperones pull down by about
-2.2-fold for a typical protein, almost free of noise (2 % of the variance), and the two
-co-chaperones respond alike (correlation 0.93).
+## 4.1 Thermal stability acts through a window
 
-| Target | Ceiling | Composition | ESMC, layer 50 | ESMC, final layer | Ensemble + ridge |
+If heat recruits proteins as they begin to unfold, the less stable a protein, the more it should gain.
+Melting temperatures for 9,792 human proteins come from the Meltome atlas (Jarzab et al. 2020;
+thermal proteome profiling, consensus over ten cell lines, reliability 0.96); 87 % of the heat-response
+proteins have one.
+
+**At 43 °C the relation is an inverted U.** Proteins were sorted by melting temperature into ten equal
+groups:
+
+| Melting temperature (°C) | <46.7 | -47.9 | -48.9 | -49.9 | -51.0 | -52.2 | -53.6 | -55.5 | -58.4 | >58.4 |
+|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| Change at 43 vs 35 °C | +0.11 | +0.24 | **+0.41** | +0.38 | +0.37 | +0.34 | +0.27 | +0.21 | +0.10 | +0.02 |
+| Change at 37 vs 35 °C | +0.07 | +0.07 | +0.08 | +0.03 | +0.03 | +0.02 | +0.01 | -0.01 | -0.03 | -0.04 |
+
+![Mean change in co-chaperone binding by melting temperature. A: at 43 °C binding rises with
+decreasing stability down to a melting temperature of about 48 °C, then falls for the least stable
+proteins (shaded: the binding window); at 37 °C it rises steadily as stability decreases. B: at 43 °C,
+complex subunits (purple) show the window more sharply than other proteins (grey). Error bars, one
+standard error.](figures/heat_tm_window.png){width=100%}
+
+Reading the 43 °C curve from right to left: the most stable proteins (melting above 58 °C) are hardly
+affected by 43 °C and gain nothing (+0.02). As stability decreases, the gain grows, and it peaks for
+proteins that melt at 48-52 °C (+0.41), 5-8 °C above the incubation temperature. For the least stable
+proteins, melting below 47 °C, the gain falls again (+0.11). So the relation rises and then falls,
+and a straight-line correlation, which averages the two halves, is close to zero (rho = -0.04). The
+curvature is statistically clear (quadratic term -0.073 [-0.095, -0.050], peak at 51 °C), appears with
+melting temperatures from HEK293T, K562 or Jurkat alone, and survives adjustment for protein class
+and starting level. At 37 °C, where nothing is near its melting point, the relation is the simple one:
+the least stable proteins gain most (slope -0.038 [-0.046, -0.028]).
+
+**A window of partial unfolding.** In the lysate at 43 °C, very stable proteins stay folded and are
+not bound. Moderately stable proteins loosen, expose hydrophobic segments, and become co-chaperone
+clients while staying soluble. The least stable proteins pass their melting point, aggregate, and
+leave the soluble reaction (or are captured by the lysate's own chaperones) before the added
+co-chaperone can hold them. Binding therefore peaks in a window just above the incubation
+temperature. The least stable proteins are still detected at 43 °C (97-99 % of them), so they are
+reduced rather than lost, which a partial loss to aggregation would produce.
+
+**But stability explains little of the heat response.** Melting temperature, with its curvature,
+explains 1.2 % of the 43 °C response and adds 0.8 points to the sequence model; the sequence model's
+predictions do not correlate with melting temperature at all (r = 0.01). The protein classes above
+(folded cytoplasmic versus disordered or membrane) act independently of stability. Proteins that the
+Meltome atlas could not melt, mostly disordered transcription factors, fall with heat (-0.43, against
++0.24 for the rest).
+
+## 4.2 Protein complexes
+
+Heat can also dissociate complexes, turning their subunits into clients whatever their own stability.
+Using 2,167 curated human complexes (EBI Complex Portal), 2,471 of the heat-response proteins are
+subunits.
+
+- **Subunits gain more at 43 °C**, at matched melting temperature, starting level and location:
+  +0.17 log2 [+0.12, +0.22], against +0.04 at 37 °C. The effect is heat-dependent.
+- **They show the window more sharply** (figure, B): in the middle third of melting temperatures
+  subunits gain +0.45 against +0.28 for other proteins; among the least stable, +0.21 against +0.30.
+- **Subunits of a complex move together**: 24 % of the variance left after removing level, stability
+  and location is shared within a complex. It is at least as strong at 37 °C, so it is not caused by heat;
+  pull-downs carry intact complexes along with whichever subunit the chaperone holds.
+- **Which complexes**: translation initiation factor eIF3 (+2.7, 13 subunits), the COPII vesicle coat,
+  the COP9 signalosome and GINS gain most; chromatin-bound nuclear complexes (nucleosomes, the
+  chromosomal passenger complex, CDK-activating kinase) lose most.
+
+Membership accounts for under 1 % of the response, like melting temperature: both point to real
+mechanisms, neither is the main driver.
+
+## 4.3 Proteins that appear at 43 °C
+
+131 proteins are detected in both co-chaperone pull-downs only at 43 °C, 16 times more than chance
+would give. They are the extreme of the same response: a model trained without them or their
+relatives predicts them to rise (AUC 0.70 against proteins of matched intensity; 0.83 for the
+strictest definition), they are cytoplasmic and rarely membrane proteins, and their melting
+temperature is ordinary (median 51 °C). They are listed as candidate heat-recruited clients in
+`reports/additional/heat43_appearing_proteins.tsv`.
+
+# 5. Staurosporine
+
+10 µM staurosporine changes co-chaperone binding only about 1.15-fold, identically for DNAJA1 and
+DNAJB11. Sequence explains 4-7 % of it, under a tenth of the ceiling, and almost all of what it explains is
+about one class of proteins.
+
+**Staurosporine removes protein kinases.** Kinases are 3.6 % of the proteins but carry 44-63 % of
+the variance of the response; other ATP-binding proteins do not move, and the heat response shows no
+kinase signal.
+
+| | Kinases | Other ATP-binding | All others | Kinase shift | p |
 |:--|--:|--:|--:|--:|--:|
-| 43 vs 35 °C, averaged | 99.2 % | 8.9 % | 22.5 % | 25.7 % | **27.5 %** |
-| 43 vs 35 °C, DNAJA1 | 97.9 % | 10.1 % | 23.0 % | 26.0 % | **27.7 %** |
-| 43 vs 35 °C, DNAJB11 | 98.3 % | 8.3 % | 21.4 % | 25.0 % | **27.2 %** |
-| 37 vs 35 °C, averaged | 86.5 % | 3.5 % | 10.8 % | 11.4 % | **12.2 %** |
+| 35 °C | -0.15 | +0.01 | +0.00 | -0.73 sd | 2e-7 |
+| 37 °C | -0.19 | -0.01 | +0.02 | -1.05 sd | 2e-20 |
+| 43 °C | -0.20 | -0.01 | +0.00 | -1.12 sd | 5e-13 |
 
-This is the most sequence-predictable response in either experiment. The embedding adds +13.6
-points over composition for the averaged 43 °C response [12.3, 14.9], and here the final layer is
-better than layer 50, by 3-4 points: the best layer depends on the property being predicted.
-Averaging a neural-network ensemble with ridge beats ridge on all four heat targets, by +1.8
-[+1.2, +2.4], +2.1 [+1.6, +2.6], +2.5 [+1.9, +3.0] and +0.8 [+0.5, +1.1] points. The heat response also depends on how much of each protein the 35 °C pull-downs contain (abundance
-explains 16.5 % of it), but this is not what sequence predicts: with abundance projected out the
-embedding explains more of the remainder, 28.9 % (additional text 1). Measured thermal stability
-explains only about 1 % of the response.
+**Depletion follows drug binding.** Staurosporine dissociation constants for 374 kinases (ChEMBL;
+three kinome-wide studies agreeing at Spearman 0.93-0.98) show that tighter binders lose more,
+within kinase groups as well as between them (partial correlation +0.24 [+0.13, +0.34] at 43 °C).
+Leaving aside the AGC group (below), the mean change at 37 °C falls off steadily with affinity:
 
-# Staurosporine response
-
-10 µM staurosporine changes what the co-chaperones pull down by only about 1.15-fold, and half
-of that is replicate noise. The ceiling for a single co-chaperone is 49-64 %; averaging the two
-raises it to 71-76 %.
-
-| Target (both co-chaperones) | Ceiling | Composition | ESMC, layer 50 |
-|:--|--:|--:|--:|
-| 35 °C | 71.7 % | 1.6 % | 6.0 % |
-| 37 °C | 75.5 % | 0.3 % | 6.5 % |
-| 43 °C | 71.4 % | 0.5 % | 5.7 % |
-
-**Staurosporine acts on protein kinases.** Staurosporine is an ATP-competitive inhibitor of most
-protein kinases, and the 346 kinases detected shift as a class. The 673 other ATP-binding proteins
-do not, and the heat response shows no kinase signal at all.
-
-| | Kinases | Other ATP-binding | All others | Kinase shift | p | Depleted 5 % |
+| Dissociation constant | < 1 nM | 1-10 nM | 10-100 nM | 0.1-1 µM | 1-10 µM | > 10 µM (not bound) |
 |:--|--:|--:|--:|--:|--:|--:|
-| 35 °C | -0.15 | +0.01 | +0.00 | -0.73 sd | 2e-7 | 6.0x |
-| 37 °C | -0.19 | -0.01 | +0.02 | -1.05 sd | 2e-20 | 6.5x |
-| 43 °C | -0.20 | -0.01 | +0.00 | -1.12 sd | 5e-13 | 5.1x |
-| *Heat (control)* | *+0.11* | *+0.33* | *+0.14* | *-0.03 sd* | *0.56* | *1.3x* |
+| Mean change | **-0.82** | -0.24 | -0.29 | -0.22 | -0.13 | -0.04 |
 
-*Mean log2 fold change. Kinase shift: kinases minus all others, in standard deviations of the fold
-change; p from a Mann-Whitney test. Depleted 5 %: how over-represented kinases are among the 5 % most
-depleted proteins. Heat (control): the same comparison for the 43 vs 35 °C heat response.*
+Since staurosporine acts in the lysate, there is no cellular turnover: these are changes in binding
+(or in solubility). The reading that fits is that the drug, sitting in the ATP site, stabilises the kinase fold, and a
+stabilised kinase is no longer held by the co-chaperone.
 
-The most depleted kinases include FER, CAMK1, CAMKK2, CSK, CDK5, CHEK2, CDK2 and STK4 (down 2- to
-6-fold). Kinases are also over-represented among the most enriched proteins: the PKC isoforms, PRKG1
-and the PKN kinases rise. Staurosporine therefore shifts kinase-chaperone association in both
-directions, kinase by kinase.
+**Not through HSP90.** Kinome-wide HSP90 client data (Taipale et al. 2012; 211 of these kinases) show
+that the kinases that lose most are *not* HSP90 clients: non-clients fall most (-0.29 to -0.37) and
+strong clients least (-0.03 to -0.12), and stronger HSP90 binding predicts a smaller loss (rho +0.24,
+p = 6e-4 at 43 °C). In the lysate, strong HSP90 clients may remain held by the endogenous
+HSP90-CDC37 machinery rather than by the added co-chaperone, and so have less to lose.
 
-**Kinases dominate the response.** The 295 kinases are 3.6 % of the proteins but, because their
-changes are so large, carry most of the variance, and most of what the model explains comes from
-them:
+**The AGC exception.** The PKC isoforms, PKN and PKG bind staurosporine as tightly as any kinase
+(dissociation constants 0.2-50 nM) yet *gain* binding (PKG1 +4.4, PKCtheta +2.2, PKN2 +1.5). The
+sparse-autoencoder features that separate them mark AGC kinases with lipid- or
+cyclic-nucleotide-sensing regulatory domains (PKC, PKN, PKD, PKG) on the gaining side, and, on the
+losing side, CAMK2, DAPK and the STE kinases, through features labelled as disordered acidic tails,
+basic regulatory linkers and coiled-coil segments. These features separate rising from
+falling kinases well within known subfamilies (38 % of the variance at 43 °C, against 20 % for the
+embedding), but not for a kinase group never seen in training: direction is a subfamily property.
 
-| Staurosporine | Variance in kinases | Explained, from kinases | R2 within kinases | R2, all others |
-|:--|--:|--:|--:|--:|
-| 35 °C | 44 % | 50 % | 3.5 % | 5.8 % |
-| 37 °C | 54 % | 62 % | 1.5 % | 6.6 % |
-| 43 °C | 63 % | 81 % | 1.3 % | 3.2 % |
+# 6. How the two co-chaperones differ
 
-The model captures the kinases mainly by knowing that kinases as a class go down. Which kinases go
-down and which go up it barely predicts (1-3.5 % within the kinases); among all other proteins it
-explains 3-7 % of a much smaller variance.
+Which of the two co-chaperones a protein prefers is the most reproducible (96 %) and the most
+predictable response here: 49 % from sequence, a third from composition alone. Because both baits
+met the same lysate, the preference is intrinsic binding specificity.
 
-**No nonlinear gain.** Unlike salt and heat, the neural-network readout does not beat ridge
-reliably here (-13, -2 and +7 points at the three temperatures). Because the signal sits in a few
-kinase families, which families fall in the selection set decides which model looks best. The
-43 °C gain comes almost entirely from the PKC family, whose held-out isoforms the network predicts
-from their relatives. Ridge regression remains the model to use for this response.
-
-# The same proteins at every temperature?
-
-For each pair of responses on the same proteins: how similar the true responses are, how similar
-the model's predictions are, and whether the same proteins are well explained. A protein's share of
-the explained variance is how much the model reduces its squared deviation from the mean; these
-shares add up to R2.
-
-| Pair | r, responses | r, predictions | r, explained | Top-5 % overlap | R2 | R2 from other |
-|:--|--:|--:|--:|--:|--:|--:|
-| Salt, 75 / 150 mM | 0.91 | 0.91 | 0.76 | 14x | 20.4 % | 17.8 % |
-| Heat, 37 / 43 °C | 0.68 | 0.80 | 0.49 | 6.3x | 27.1 % | 17.0 % |
-| Staurosporine, 35 / 37 °C | 0.54 | 0.40 | 0.12 | 6.9x | 8.3 % | 1.6 % |
-| Staurosporine, 37 / 43 °C | 0.44 | 0.40 | 0.07 | 6.5x | 7.1 % | 1.9 % |
-| Staurosporine, 35 / 43 °C | 0.47 | 0.72 | 0.18 | 7.4x | 7.1 % | 6.1 % |
-
-*r, explained: correlation of the proteins' shares of explained variance. Top-5 % overlap: how
-often the 5 % best-explained proteins coincide, relative to chance. R2 is for the second response
-of each pair; "R2 from other" scores the first response's predictions, rescaled linearly, against
-it.*
-
-- **Salt:** the same proteins at both doses. The 75 mM predictions alone explain 17.8 % of the
-  150 mM response.
-- **Heat:** largely the same proteins. The predictions at 37 and 43 °C correlate at 0.80, the
-  best-explained 5 % overlap six-fold beyond chance, and the 37 °C predictions explain 17 % of the
-  43 °C response, against 27 % for its own model.
-- **Staurosporine:** different proteins at each temperature, apart from a small shared core. The
-  responses correlate at 0.44-0.54, but which proteins the model explains barely carries over
-  (0.07-0.18), and one temperature's predictions explain only 1.6-6 % of another's.
-
-# One nonlinear model, different linear readouts?
-
-Two tests, on the proteins kept at every temperature, with a fixed network configuration:
-
-- **One network with a separate linear output per temperature**, trained jointly, against separate
-  networks.
-- **A network trained on one temperature, frozen, with a new linear readout fitted for another.**
-  Each is compared with the second temperature's own network, read out the same way.
-
-| | Shared vs separate networks | Network from the other temperature vs own |
-|:--|--:|--:|
-| Heat, 37 vs 35 °C | +0.1 [-0.2, +0.5] | from 43 °C: +0.4 [-0.6, +1.4] |
-| Heat, 43 vs 35 °C | -0.4 [-0.8, +0.0] | from 37 °C: **-3.4 [-4.7, -2.1]** |
-| Staurosporine, 35 °C | -0.8 [-1.8, +0.3] | from 37 °C: -0.4 [-1.8, +1.3]; from 43 °C: +1.5 [-0.4, +3.6] |
-| Staurosporine, 37 °C | +0.2 [-0.5, +1.0] | from 35 °C: **+1.6 [+0.4, +3.1]**; from 43 °C: **+3.5 [+0.9, +6.4]** |
-| Staurosporine, 43 °C | +2.8 [-0.5, +6.2] | from 35 °C: -0.5 [-5.2, +4.9]; from 37 °C: +0.0 [-3.8, +4.5] |
-
-*Change in percent of variance explained, with 95 % intervals over sequence clusters.*
-
-**For heat, yes, one nonlinear model serves both temperatures.** A single network with two linear
-outputs matches separate networks to within 0.4 points. A network trained only on the 43 °C
-response, frozen and given a new linear readout, predicts the 37 °C response as well as a network
-trained on 37 °C. The reverse fails: the 37 °C network loses 3.4 points on the 43 °C response.
-The 43 °C response contains the 37 °C pattern and more.
-
-**For staurosporine, a network from another temperature is never worse and sometimes better.** For
-37 °C, networks trained at 35 or 43 °C beat 37 °C's own, by 1.6 and 3.5 points. That is the
-pattern expected if one sequence determinant underlies all three temperatures and each temperature
-measures it with independent noise. The per-protein differences between temperatures above then
-reflect that noise more than different biology.
-
-# Protein families
-
-Proteins were grouped by UniProt family (top level; families of at least 15 detected members), and
-by subcellular location.
-
-| | Salt, 150 mM | Heat, 43 vs 35 °C | Staurosporine, 37 °C |
-|:--|--:|--:|--:|
-| Proteins in families of 15 or more | 972 (23 families) | 1,327 (34) | 1,308 (34) |
-| Share of the true response that lies between families | 16 % | 20 % | 6 % |
-| Model, R2 on these proteins | 20.6 % | 29.3 % | 6.5 % |
-| R2 from each family's average prediction alone | 13.6 % | 14.7 % | 4.9 % |
-| Correlation within families | 0.29 | 0.43 | 0.13 |
-
-For proteins in large families, half to three quarters of what the model explains comes from
-getting each family's average response right; the rest comes from ranking proteins within a family,
-which works best for heat (r = 0.43).
-
-**Best and worst predicted families** (share of their deviation from the overall mean explained):
-
-| Response | Best predicted | Worst predicted |
-|:--|:--|:--|
-| Salt, 150 mM | mitochondrial carriers (88 %, up), KRAB zinc fingers (49 %, up), class I aminoacyl-tRNA synthetases (52 %, down), ABC transporters (42 %) | small GTPases, DEAD-box and other helicases, myosins and kinesins (below 0 %) |
-| Heat, 43 vs 35 °C | mitochondrial carriers (77 %, down), MFS and P-type transporters (67 %, down), deubiquitinases (57 %, up; within-family r = 0.79), dynamins (53 %, up), class II aminoacyl-tRNA synthetases (48 %, up) | tubulins (true down, predicted up), cyclins, actins, ABC transporters |
-| Staurosporine, 37 °C | protein kinases (3.6 % of proteins, 62 % of what is explained), ATP-dependent AMP-binding enzymes, translation GTPases, AAA ATPases | dynamins, SAM methyltransferases, actins |
-
-Membrane transporters stand out in both salt and heat, in opposite directions: they rise in the
-HSPB1 pull-down with salt and fall in the co-chaperone pull-downs with heat, and in both the model
-predicts the family average well. Cytoskeletal structural proteins (tubulin, actin) are the most
-consistently mispredicted.
-
-**By compartment** the heat response is predicted about equally well everywhere (20-30 %, lowest for
-the cytoskeleton). For staurosporine, endoplasmic-reticulum proteins are predicted best (17 %, within
-r = 0.41) and secreted proteins worst (about 0 %). For salt, mitochondrial, Golgi and membrane
-proteins (25-28 %) are predicted better than cytoplasmic and cytoskeletal ones (17 %).
-
-# Interpretable features from the ESMC-6B sparse autoencoder
-
-Biohub's sparse autoencoder for ESMC-6B (layer 60 of 80) rewrites each residue's 2,560-number
-representation as a combination of 64 active features out of 16,384, each with a label and
-description written by a language-model agent from the feature's activations across millions of
-proteins. Features were computed for all 10,019 proteins, and a protein's value for a feature is its
-strongest activation along the sequence. Two checks: the autoencoder reconstructs layer 60 at least
-as well as the adjacent layers, and its P-loop NTPase feature fires on GTPases, kinesins, myosins,
-dynamin and DEAD-box helicases (64 % nucleotide-binding, against 10 % overall).
-
-**The features keep nearly all of the predictive information.**
-
-| Response | Embedding, layer 60 | SAE features | Top 1 feature | Top 10 | Top 100 |
-|:--|--:|--:|--:|--:|--:|
-| Salt, 150 mM | 16.2 % | 15.5 % | 3.0 % | 3.7 % | 3.9 % |
-| Heat, 43 vs 35 °C | 20.8 % | 19.5 % | 2.7 % | 9.4 % | 12.7 % |
-| Heat, 37 vs 35 °C | 10.2 % | 10.1 % | 2.0 % | 3.3 % | 4.1 % |
-| Staurosporine, 37 °C | 6.5 % | 7.4 % | 2.8 % | 3.6 % | 3.4 % |
-| Staurosporine, 43 °C | 5.8 % | 7.0 % | 3.0 % | 3.6 % | 3.1 % |
-
-*Top k: features chosen by correlation inside each training fold, scored on held-out clusters.*
-
-The 16,384 features match the embedding they are derived from (90-114 %). A handful of features
-captures half the heat response, and one feature half the staurosporine response; the salt response
-is spread over hundreds.
-
-**What the predictive features are.** For each response, the categories of the 100 most strongly
-associated features were compared with 500 random features, and each feature's label was checked
-against the UniProt keywords of the proteins in these data on which it is active.
-
-| Response | Features of proteins that rise | Features of proteins that fall |
-|:--|:--|:--|
-| Salt | Transmembrane helices: 94 of the top 100 are membrane-associated (random: 13 %; p = 6e-58), e.g. "transmembrane helix exit signature", "multipass membrane helices"; carriers, SLC transporters, ETC subunits | Long disordered regions |
-| Heat | Folded enzyme cores: structural motifs (odds ratio 5.5, p = 1e-9), e.g. the isocitrate dehydrogenase beta-strand feature; catalase, IDH, ALDH, enolase, TIM barrels, Rossmann folds | Disordered and low-complexity regions; transmembrane segments (odds ratio 11.6, p = 1e-21); secreted cysteine-rich proteins |
-| Staurosporine | none | Kinase-domain elements: the alphaC helix (standing for 149 near-identical features), glycine-rich phosphate loop, juxtacatalytic tail; catalytic and sequence-motif categories enriched (odds ratios 4.0-4.6) |
-
-Each picture is mechanistically coherent. Salt weakens electrostatic interactions and strengthens
-hydrophobic ones, and the proteins whose HSPB1 association survives or grows with salt are exactly
-those built around hydrophobic transmembrane helices, while disordered, charged proteins are lost.
-Heat to 43 °C draws folded, globular cytoplasmic enzymes into the co-chaperone pull-downs, and not
-disordered or membrane proteins. Measured thermal stability does not explain this: Meltome melting
-temperatures account for about 1 % of the heat response and nothing of what sequence predicts
-(additional text 1).
-Staurosporine removes proteins carrying a kinase domain. These are hypotheses that the features
-suggest, not tests of mechanism. The family analysis pointed the same way (transporters, kinases);
-the features name the underlying property directly and apply it across families.
-
-**Which kinases rise and which fall.** Among about 300 kinases, the features marking the kinases
-staurosporine *enriches* pick out AGC kinases with lipid- or nucleotide-sensing regulatory domains:
-the PKC isoforms, PKN, PKD and PKG (cyclic-nucleotide-binding domain). Those marking kinases it
-*depletes* pick out CAMK2 and DAPK (acidic and basic regulatory linkers), MST, MAP3K and MAP4K
-(coiled-coil oligomerisation segments), and CDKs. Group by group, CAMK kinases fall most (-0.47 at
-43 °C) and AGC kinases rise (+0.16).
-
-| Within the kinases | 37 °C | 43 °C |
-|:--|--:|--:|
-| SAE features, related kinases in training | 11.7 % | 38.1 % |
-| Embedding, related kinases in training | 9.3 % | 20.4 % |
-| SAE features, whole kinase group held out | 1.2 % | -0.8 % |
-| Kinase group label alone | 2.9 % | 8.2 % |
-
-The SAE features describe kinase subfamilies better than the embedding does (38 % against 20 % at
-43 °C), but they predict nothing for a kinase group never seen in training. Staurosporine's direction
-is a subfamily property, which the features recognise, not a rule that carries across kinase groups.
-
-**The labels need checking.** A feature's label describes its strongest activations, which may lie
-in other proteins. Several of the best staurosporine predictors are labelled "beta-lactamase fold
-transpeptidase core", "glycoside hydrolase catalytic cleft" or "small-residue transmembrane helix
-bundles", yet in these data they fire above their threshold mostly on kinases, which is why they
-predict. Within the kinases, the features marking PKC isoforms carry labels such as "GIY-YIG nuclease
-motif" and "OB-fold ssDNA-binding module". Comparing each feature's active proteins with their UniProt
-annotation, as done here, is what makes the labels usable.
-
-# How the two co-chaperones differ
-
-The DNAJA1 and DNAJB11 pull-downs can differ in which proteins they contain, and in how they respond
-to heat or staurosporine. Each difference was measured on the same proteins, without the baits
-themselves, with its own split-half ceiling.
-
-| DNAJB11 minus DNAJA1 | sd (log2) | Ceiling | Composition | ESMC L80 | SAE |
-|:--|--:|--:|--:|--:|--:|
-| Preference, all temperatures | 0.41 | 95.9 % | 31.7 % | **45.6 %** | 36.6 % |
-| Preference at 35 °C | 0.54 | 90.8 % | 30.1 % | 41.0 % | 36.6 % |
-| Preference at 43 °C | 0.36 | 82.8 % | 23.7 % | 35.1 % | 24.9 % |
-| Heat response, 43 vs 35 °C | 0.41 | 75.6 % | 16.8 % | 22.6 % | 22.8 % |
-| Staurosporine response | 0.19-0.22 | ~0 % | | | |
-
-*Preference: how much more of a protein the DNAJB11 pull-down contains than the DNAJA1 pull-down.*
-
-**Which proteins each co-chaperone prefers is the most sequence-predictable quantity in either
-experiment**: the embedding explains 46 % of it, half of a 96 % ceiling, and amino-acid composition
-alone a third. Staurosporine acts identically on both: their responses differ by nothing reproducible.
-
-**DNAJB11 prefers secretory-pathway and membrane proteins; DNAJA1 prefers nuclear RNA-processing
-proteins with charged disordered regions.** Mean preference (log2, > 0 toward DNAJB11):
-
-| Toward DNAJB11 | | Toward DNAJA1 | |
+| Prefers DNAJB11 | | Prefers DNAJA1 | |
 |:--|--:|:--|--:|
-| Immunoglobulin domain | +0.40 | Citrullination | -0.75 |
-| Receptor | +0.39 | Ribosomal protein | -0.45 |
-| Signal peptide | +0.35 (p 6e-88) | Ribonucleoprotein | -0.42 (p 3e-58) |
-| Transmembrane | +0.32 (p 1e-157) | rRNA processing | -0.38 |
-| Glycoprotein | +0.31 | Spliceosome | -0.35 |
-| Disulfide bond | +0.29 | Helicase | -0.31 |
-| Lysosome / endosome | +0.21 | SR splicing factors | -0.62 |
-| Golgi | +0.18 | KRAB zinc fingers | -0.46 |
-| Endoplasmic reticulum | +0.17 | Nucleus | -0.15 (p 1e-158) |
+| Signal peptide | +0.35 (p 6e-88) | SR splicing factors | -0.62 |
+| Transmembrane | +0.32 (p 1e-157) | Ribosomal proteins | -0.45 |
+| Glycoprotein | +0.31 | Ribonucleoproteins | -0.42 (p 3e-58) |
+| Disulfide bond | +0.29 | KRAB zinc fingers | -0.46 |
+| Lysosome, Golgi, ER | +0.17 to +0.21 | Nucleus | -0.15 (p 1e-158) |
 
-This matches what the two proteins are: DNAJB11 (ERdj3) is an ER-lumenal J-protein that binds
-unfolded secretory and membrane proteins, and DNAJA1 a cytosolic and nuclear one. The SAE features
-say the same at the level of sequence elements. The strongest features of DNAJA1-preferring proteins
-are all disorder and charge features ("charged disordered low-complexity tracts", "KR-rich NLS-like
-motifs", "RS/SR phospho-regulated IDRs"; compositional-bias and disorder categories enriched,
-p = 1e-11), and those of DNAJB11-preferring proteins are membrane features ("cytosolic juxtamembrane
-anchor motif", standing for 18 near-identical features; membrane category p = 2e-31). The preference
-is both between and within families: family averages account for 60 % of what the model explains on
-proteins in large families, and the within-family correlation is 0.56, the highest of any response.
+*Mean preference, log2; > 0 toward DNAJB11.*
 
-**With heat the two pull-downs converge, uniformly.** At 43 °C each protein keeps about 40 % of its
-35 °C preference. That shrinkage accounts for the whole difference between the two heat responses:
-removing it leaves a remainder with no reliability (-0.03). The proteins that appear to move toward
-one co-chaperone with heat are simply those that preferred the other at 35 °C; heat weakens the
-distinction without reassigning particular proteins.
+DNAJB11 binds secretory and membrane proteins, the clients it meets in the ER, even when offered the
+whole proteome. DNAJA1 binds nuclear RNA-processing proteins; its sparse-autoencoder features are all
+charge and disorder features ("charged disordered low-complexity tracts", "KR-rich NLS-like motifs",
+"RS/SR phospho-regulated regions"). Family averages account for 60 % of what the model explains, and
+within families prediction still correlates at 0.56.
 
-# Using individual samples instead of replicate means
+The two co-chaperones respond the same way to staurosporine and nearly the same way to heat. Their
+one difference under heat is uniform convergence: at 43 °C each protein keeps about 40 % of its 35 °C
+preference, and nothing reproducible remains beyond that shrinkage.
 
-Each protein's measurements were also modelled sample by sample, with a separate noise level for
-each run and a noise level that rises for low-abundance proteins (4-fold from the most to the least
-abundant fifth). Three ways of letting that noise discount samples were compared against the
-plain replicate mean, in the same networks:
+# 7. Across experiments
 
-| | Salt | Heat | Staurosporine |
-|:--|--:|--:|--:|
-| Measurement noise, share of variance | 0.4-0.8 % | 2 % | 15 % |
-| Weight by measurement noise alone | -4.1 to -1.3 | -1.9 to -0.2 | -3.7 to +7.7 |
-| Full likelihood (model error + noise) | -0.3 to +0.2 | -0.2 to +0.3 | -2.1 to +10.8 |
-| Network predicts its own uncertainty | -0.2 to +0.6 | -0.2 to +0.5 | -1.8 to +15.1 |
+The responses are largely independent. The salt experiment predicts at most 7 % of any GA_33 response
+and vice versa, and staurosporine and the co-chaperone preference share nothing with salt. The one
+cross-experiment link, salt against heat (r = -0.24), disappears (-0.01) once each protein's starting
+level in the two pull-downs is accounted for: proteins relatively enriched in one pull-down lose share
+in it under that experiment's perturbation. There is no single protein property behind all the
+responses; each has its own determinants.
 
-*Change in percent of variance explained, against the same network trained on the replicate mean.*
+# 8. What would test these readings next
 
-Weighting by measurement noise alone hurts, because it gives the best-measured proteins up to 16
-times the influence and those are not the easiest to predict. Under the full likelihood the
-model's own error (27-48 % of the variance on the salt data) dwarfs measurement noise, so the weights come out
-nearly uniform and the result equals the plain mean. Staurosporine, where noise is largest, shows a
-slightly positive median effect, but its spread is far wider than the effect.
+- **One input lysate.** Since every reaction started from the same lysate, measuring it once separates
+  a protein's amount in the lysate from how strongly it binds, and turns the starting-level effect into
+  a binding measure.
+- **The soluble and insoluble fractions after incubation at 43 °C.** The window predicts that the least
+  stable proteins move into the insoluble fraction.
+- **Melting temperatures measured in this lysate.** The Meltome values come from other cells and a
+  three-minute heat pulse; lysate-specific values would sharpen the window.
 
-# Conclusions and next steps
+# Notes on methods
 
-Protein sequence, read through a language-model embedding, predicts how chaperone association
-responds to salt, heat and staurosporine, in each case well beyond amino-acid composition and in
-proteins with no close relative in the training data. Heat is the most predictable (27.5 % of a
-99 % ceiling); staurosporine is the least, and its signal is dominated by protein kinases.
-
-1. **Input lysate.** Measuring each pull-down against its own input would separate a change in a
-   protein's amount from a change in its binding, the open question for the depleted kinases.
-2. **Staurosporine affinity across the kinome.** Measured binding constants are the natural test of
-   which kinases go down and which go up.
-3. **Several layers at once.** The best embedding layer differs by target by 3-4 points.
+- Folds group proteins at 30 % sequence identity (MMseqs2). Out-of-family intervals resample families.
+- The salt workbook had been damaged by a find-and-replace (missing values had become zeros, and eight
+  accessions were mangled); targets were rebuilt from the replicates and checked against the file's
+  own statistics.
+- Weighting proteins by their measurement noise was tested and does not help: noise is too small a
+  part of the variance for the salt and heat responses.
+- Detailed analyses are in `reports/additional/additional_text_1` to `_7`: thermal stability (1),
+  kinases and staurosporine (2), cross-experiment structure (3), normalisation (4), proteins that
+  appear or vanish (5), combining layers (6), complexes (7).
