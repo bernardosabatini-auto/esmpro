@@ -140,9 +140,10 @@ This is the most sequence-predictable response in either experiment. The embeddi
 points over composition for the averaged 43 °C response [12.3, 14.9], and here the final layer is
 better than layer 50, by 3-4 points: the best layer depends on the property being predicted.
 Averaging a neural-network ensemble with ridge beats ridge on all four heat targets, by +1.8
-[+1.2, +2.4], +2.1 [+1.6, +2.6], +2.5 [+1.9, +3.0] and +0.8 [+0.5, +1.1] points. Which proteins a
-co-chaperone binds more of at 43 °C plausibly depends on thermal stability and aggregation
-propensity, both encoded in sequence and structure.
+[+1.2, +2.4], +2.1 [+1.6, +2.6], +2.5 [+1.9, +3.0] and +0.8 [+0.5, +1.1] points. The heat response also depends on how much of each protein the 35 °C pull-downs contain (abundance
+explains 16.5 % of it), but this is not what sequence predicts: with abundance projected out the
+embedding explains more of the remainder, 28.9 % (additional text 1). Measured thermal stability
+explains only about 1 % of the response.
 
 # Staurosporine response
 
@@ -330,8 +331,10 @@ against the UniProt keywords of the proteins in these data on which it is active
 Each picture is mechanistically coherent. Salt weakens electrostatic interactions and strengthens
 hydrophobic ones, and the proteins whose HSPB1 association survives or grows with salt are exactly
 those built around hydrophobic transmembrane helices, while disordered, charged proteins are lost.
-Heat to 43 °C draws folded, globular enzymes into the co-chaperone pull-downs, the proteins that
-partly unfold when heated, and not disordered or membrane proteins, which have no fold to lose.
+Heat to 43 °C draws folded, globular cytoplasmic enzymes into the co-chaperone pull-downs, and not
+disordered or membrane proteins. Measured thermal stability does not explain this: Meltome melting
+temperatures account for about 1 % of the heat response and nothing of what sequence predicts
+(additional text 1).
 Staurosporine removes proteins carrying a kinase domain. These are hypotheses that the features
 suggest, not tests of mechanism. The family analysis pointed the same way (transporters, kinases);
 the features name the underlying property directly and apply it across families.
