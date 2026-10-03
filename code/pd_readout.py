@@ -61,9 +61,17 @@ class Ens(torch.nn.Module):
         return x
 
 
-def train_mlp(cfg, loss, Xtr, ytr, vtr, Xva, yva, Xte, members=16, epochs=400, patience=25, batch=256):
+def train_mlp(cfg, loss, Xtr, ytr, vtr, Xva, yva, Xte, members=16, epochs=400, patience=25, batch=256,
+              combine="mean", var_cap=None):
     """Single-target ensemble. y in standardised units, v the measurement variance in the same
-    units. Each member keeps its own best-on-validation weights; the ensemble mean is returned."""
+    units. Each member keeps its own best-on-validation weights.
+
+    combine   "mean" or "median" over members. On a noisy, heavy-tailed target a single member can
+              run away on a few inputs (seen on GA_33 staurosporine: three proteins with true change
+              ~0 predicted at +2.0 to +2.8, one fold at R2 -30 %); the median is immune to that.
+    var_cap   upper bound on the heteroscedastic head's variance, in units of var(y). Without it the
+              network can call an input arbitrarily uncertain, after which nothing anchors its mean.
+    """
     dev = Xtr.device
     E, het = members, loss == "het"
     net = Ens(E, Xtr.shape[1], cfg["hidden"], 2 if het else 1, cfg["drop"]).to(dev)
@@ -93,7 +101,10 @@ def train_mlp(cfg, loss, Xtr, ytr, vtr, Xva, yva, Xte, members=16, epochs=400, p
                 var = torch.exp(logtau) + vt[idx]
                 l = (0.5 * (mu - yb) ** 2 / var + 0.5 * torch.log(var)).mean()
             else:
-                var = F.softplus(out[..., 1:]) + 1e-3 + vt[idx]
+                s2 = F.softplus(out[..., 1:]) + 1e-3
+                if var_cap is not None:
+                    s2 = s2.clamp(max=var_cap)
+                var = s2 + vt[idx]
                 l = ((0.5 * (mu - yb) ** 2 / var + 0.5 * torch.log(var)) * var.detach() ** 0.5).mean()
             opt.zero_grad(set_to_none=True)
             l.backward()
@@ -109,12 +120,13 @@ def train_mlp(cfg, loss, Xtr, ytr, vtr, Xva, yva, Xte, members=16, epochs=400, p
                 sp.copy_(torch.where(imp.view(-1, *([1] * (p.dim() - 1))), p.detach(), sp))
         if bool((bad >= patience).all()):
             break
+    agg = (lambda t: t.median(0).values) if combine == "median" else (lambda t: t.mean(0))
     with torch.no_grad():
         for sp, p in zip(state, net.parameters()):
             p.copy_(sp)
         net.eval()
-        pva = net(Xva)[..., 0].mean(0)
-        pte = net(Xte)[..., 0].mean(0)
+        pva = agg(net(Xva)[..., 0])
+        pte = agg(net(Xte)[..., 0])
     return pva, pte, dict(epochs=float(epb.mean()), tau2=float(torch.exp(logtau)))
 
 

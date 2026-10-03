@@ -36,6 +36,8 @@ ap.add_argument("--top", type=int, default=3)
 ap.add_argument("--boot", type=int, default=2000)
 ap.add_argument("--quick", action="store_true")
 ap.add_argument("--tag", default="")
+ap.add_argument("--combine", default="mean", choices=("mean", "median"))
+ap.add_argument("--var-cap", type=float, default=None, help="cap on the het head's variance, units of var(y)")
 a = ap.parse_args()
 dev = "cuda" if torch.cuda.is_available() else "cpu"
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -47,7 +49,8 @@ FO = np.load(f"{D}/folds_ga05.npz", allow_pickle=True)
 EMB = np.load(f"{D}/emb_L{a.layer}.npy")
 groups = FO["groups"]
 CEIL = {k: v["ceiling"] for k, v in json.load(open(f"{D}/ga05_results.json")).items() if not k.startswith("_")}
-print(f"GA_33 readout | ESMC layer {a.layer} | {a.members}-member ensembles | device {dev}", flush=True)
+print(f"GA_33 readout | ESMC layer {a.layer} | {a.members}-member ensembles ({a.combine}) | "
+      f"het variance cap {a.var_cap} | device {dev}", flush=True)
 
 
 def pairs_of(name):
@@ -163,7 +166,8 @@ for name in a.targets.split(","):
             zva = (p["yt"][p["iva"]] - p["ym"]) / p["ys"]
             pva, pte, inf = train_mlp(cfg, loss, p["Z"][p["itr"]], ztr, p["v"], p["Z"][p["iva"]], zva,
                                       p["Z"][p["te"]], members=a.members, epochs=(3 if a.quick else a.epochs),
-                                      patience=(2 if a.quick else a.patience))
+                                      patience=(2 if a.quick else a.patience),
+                                      combine=a.combine, var_cap=a.var_cap)
             vals.append(r2(zva.cpu(), pva.cpu()))
             oof[p["te"]] = (pte * p["ys"] + p["ym"]).cpu().numpy()
             eps.append(inf["epochs"]); taus.append(inf["tau2"])
@@ -204,7 +208,7 @@ for name in a.targets.split(","):
                                        gain=sel["outer"] - r2r, gain_ci=[lo, hi]),
                          blend=dict(outer=ob, gain=ob - r2r, gain_ci=[blo, bhi]),
                          minutes=(time.time() - t0) / 60)
-    np.save(f"{D}/ga09_oof_{name}.npy", np.stack([Y, rid, sel["oof"], bl]))
+    np.save(f"{D}/ga09_oof_{name}{a.tag}.npy", np.stack([Y, rid, sel["oof"], bl]))
 
 if dev == "cuda":
     print(f"\npeak GPU {torch.cuda.max_memory_allocated()/1e9:.2f} GB", flush=True)
