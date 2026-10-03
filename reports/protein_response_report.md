@@ -36,9 +36,10 @@ that is reproducible between independent replicates, and so the most any predict
   helices. Heat recruits folded cytoplasmic proteins and loses disordered and membrane proteins.
   Staurosporine removes kinases, in proportion to how tightly it binds them. DNAJB11 prefers
   secretory and membrane proteins, DNAJA1 nuclear proteins with charged disordered regions.
-- **Thermal stability shapes the heat response through a window.** Proteins that melt a few degrees
-  above 43 °C gain the most binding; less stable and more stable proteins gain less. Stability
-  matters, but explains little of the response overall.
+- **Thermal stability sets when a protein's binding switches on.** The least stable proteins respond
+  by 37 °C, those melting a few degrees above 43 °C respond between 37 and 43 °C, and the most stable
+  barely respond; comparing 43 with 35 °C therefore gives an inverted U. Stability matters, but
+  explains little of the response overall.
 - **The responses are largely independent of one another.** There is no single protein property
   behind them all.
 
@@ -160,9 +161,11 @@ groups:
 | Change at 43 vs 35 °C | +0.11 | +0.24 | **+0.41** | +0.38 | +0.37 | +0.34 | +0.27 | +0.21 | +0.10 | +0.02 |
 | Change at 37 vs 35 °C | +0.07 | +0.07 | +0.08 | +0.03 | +0.03 | +0.02 | +0.01 | -0.01 | -0.03 | -0.04 |
 
-![Mean change in co-chaperone binding by melting temperature. A: at 43 °C binding rises with
-decreasing stability down to a melting temperature of about 48 °C, then falls for the least stable
-proteins (shaded: the binding window); at 37 °C it rises steadily as stability decreases. B: at 43 °C,
+![Mean change in each protein's share of co-chaperone binding, by melting temperature (normalised;
+in absolute terms every group gains, see the table below). A: at 43 °C the gain rises with decreasing
+stability down to a melting temperature of about 48 °C, then falls for the least stable proteins,
+which responded earlier (shaded: the binding window); at 37 °C it rises steadily as stability
+decreases. B: at 43 °C,
 complex subunits (purple) show the window more sharply than other proteins (grey). Error bars, one
 standard error.](figures/heat_tm_window.png){width=100%}
 
@@ -176,13 +179,32 @@ melting temperatures from HEK293T, K562 or Jurkat alone, and survives adjustment
 and starting level. At 37 °C, where nothing is near its melting point, the relation is the simple one:
 the least stable proteins gain most (slope -0.038 [-0.046, -0.028]).
 
-**A window of partial unfolding.** In the lysate at 43 °C, very stable proteins stay folded and are
-not bound. Moderately stable proteins loosen, expose hydrophobic segments, and become co-chaperone
-clients while staying soluble. The least stable proteins pass their melting point, aggregate, and
-leave the soluble reaction (or are captured by the lysate's own chaperones) before the added
-co-chaperone can hold them. Binding therefore peaks in a window just above the incubation
-temperature. The least stable proteins are still detected at 43 °C (97-99 % of them), so they are
-reduced rather than lost, which a partial loss to aggregation would produce.
+**Each protein's binding switches on over a temperature range set by its stability.** Two facts
+explain the inverted U. First, it describes each protein's *share* of the binding: total binding
+nearly doubles at 43 °C, and in absolute terms every stability group gains (by +0.9 to +1.3 log2;
+table below), the least stable included. Second, splitting the 35 to 43 °C change into its two steps
+shows that proteins respond at different temperatures according to their stability:
+
+| Melting temperature (°C) | <46.7 | -47.9 | -48.9 | -49.9 | -51.0 | -52.2 | -53.6 | -55.5 | -58.4 | >58.4 |
+|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
+| Step 35 to 37 °C | **+0.07** | +0.07 | +0.08 | +0.03 | +0.03 | +0.02 | +0.01 | -0.01 | -0.02 | -0.04 |
+| Step 37 to 43 °C | +0.04 | +0.18 | +0.32 | **+0.36** | +0.34 | +0.33 | +0.26 | +0.22 | +0.13 | +0.06 |
+| 35 to 43 °C, absolute | +0.99 | +1.12 | **+1.28** | +1.26 | +1.24 | +1.22 | +1.14 | +1.09 | +0.98 | +0.89 |
+
+*Mean change, log2, for the 7,115 proteins detected at all three temperatures. "Absolute" adds back
+the overall rise removed by normalisation.*
+
+The least stable proteins gain most between 35 and 37 °C and then hardly change between 37 and 43 °C
+(+0.04, against +0.34 for proteins melting at 48-52 °C; p = 2e-15). Proteins of intermediate
+stability barely move up to 37 °C and respond strongly between 37 and 43 °C. The most stable have
+hardly begun by 43 °C. Each protein's binding thus rises over a temperature range that tracks its
+stability, and comparing 43 with 35 °C catches each protein at a different point of its own
+transition: the least stable have already finished, the intermediate ones are mid-transition, and
+the most stable have not started. The least stable proteins did not start out more bound (their
+level in the 35 °C pull-down matches the others'), and western blots show the soluble proteins do
+not change across temperature, so the downturn reflects when binding happens, not loss of protein
+from solution. Soluble aggregates that do not pellet would still appear soluble on a blot, so that
+alternative is not entirely excluded.
 
 **But stability explains little of the heat response.** Melting temperature, with its curvature,
 explains 1.2 % of the 43 °C response and adds 0.8 points to the sequence model; the sequence model's
@@ -304,8 +326,8 @@ responses; each has its own determinants.
 - **One input lysate.** Since every reaction started from the same lysate, measuring it once separates
   a protein's amount in the lysate from how strongly it binds, and turns the starting-level effect into
   a binding measure.
-- **The soluble and insoluble fractions after incubation at 43 °C.** The window predicts that the least
-  stable proteins move into the insoluble fraction.
+- **Binding at more temperatures.** Pull-downs at, say, 39 and 41 °C would trace each protein's
+  transition directly, and test whether its midpoint follows its stability.
 - **Melting temperatures measured in this lysate.** The Meltome values come from other cells and a
   three-minute heat pulse; lysate-specific values would sharpen the window.
 
