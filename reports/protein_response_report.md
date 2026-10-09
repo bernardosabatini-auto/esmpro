@@ -1,6 +1,6 @@
 ---
 title: "Predicting how chaperone binding responds to salt, heat and staurosporine from protein sequence"
-date: "3 October 2026"
+date: "8 October 2026"
 geometry: margin=2.2cm
 fontsize: 10pt
 colorlinks: true
@@ -21,6 +21,7 @@ binding changes, and what the predictions reveal.
 |:--|:--|--:|--:|--:|
 | Co-chaperone preference | DNAJB11 vs DNAJA1 | 96 % | **49 %** | 32 % |
 | Heat, 43 vs 35 °C | DNAJA1, DNAJB11 | 99 % | **27 %** | 9 % |
+| Heat, 43 vs 35 °C, selective part | DNAJA1, DNAJB11 | 98 % | **13 %** | |
 | Salt, 150 vs 0 mM | HSPB1 | 99 % | **20 %** | 8 % |
 | Salt, 75 vs 0 mM | HSPB1 | 99 % | **18 %** | 6 % |
 | Heat, 37 vs 35 °C | DNAJA1, DNAJB11 | 87 % | **13 %** | 4 % |
@@ -28,7 +29,9 @@ binding changes, and what the predictions reveal.
 
 *Percent of variance explained on proteins whose sequence families were held out of training, by the
 best sequence model and by the 20 amino-acid fractions alone. The ceiling is the part of the variance
-that is reproducible between independent replicates, and so the most any predictor could explain.*
+that is reproducible between independent replicates, and so the most any predictor could explain.
+The selective part of the heat response is what remains once the shift of the 43 °C pull-downs
+toward the lysate composition is removed (section 4).*
 
 - **Sequence predicts every response, well beyond amino-acid composition.** The best results come
   from reading several layers of the ESMC-6B protein language model at once.
@@ -36,10 +39,12 @@ that is reproducible between independent replicates, and so the most any predict
   helices. Heat recruits folded cytoplasmic proteins and loses disordered and membrane proteins.
   Staurosporine removes kinases, in proportion to how tightly it binds them. DNAJB11 prefers
   secretory and membrane proteins, DNAJA1 nuclear proteins with charged disordered regions.
-- **Thermal stability sets when a protein's binding switches on.** The least stable proteins respond
-  by 37 °C, those melting a few degrees above 43 °C respond between 37 and 43 °C, and the most stable
-  barely respond; comparing 43 with 35 °C therefore gives an inverted U. Stability matters, but
-  explains little of the response overall.
+- **At 43 °C the pull-downs become half lysate-like.** Measuring the input lysate shows that about half of
+  the 43 °C pull-down is in proportion to the lysate, the same for both co-chaperones. This accounts
+  for 45 % of the 43 °C response, including the earlier starting-level effect.
+- **Less stable proteins gain more with heat.** At matched lysate abundance and 35 °C enrichment,
+  the heat gain rises as stability falls. The least stable proteins respond by 37 °C, those of intermediate stability
+  between 37 and 43 °C, and the most stable lose share. Stability explains about 5 % of the change.
 - **The responses are largely independent of one another.** There is no single protein property
   behind them all.
 
@@ -62,7 +67,9 @@ difference between them is a difference in what they bind, not in where they nor
 **What is measured.** For each protein, the change in its log2 intensity in the pull-down between two
 conditions (a log2 fold change), averaged over biological replicates. A protein is kept when it is
 detected in most replicates of both conditions. GA_33 runs are median-normalised; the main
-conclusions are unchanged under four other normalisations. In GA_33 the heat and staurosporine
+conclusions are unchanged under four other normalisations. For GA_33 the input lysate of each
+reaction was also measured, which separates how much of a protein the lysate contains from how
+strongly it is captured (additional text 8). In GA_33 the heat and staurosporine
 responses are averaged over the two co-chaperones, which respond almost identically (correlations
 0.83-1.0 after correcting for noise).
 
@@ -124,94 +131,87 @@ for a typical protein, and overall the pull-downs contain about 1.9 times more p
 +0.9 log2), which with equal inputs means more total binding at 43 °C. The normalised responses below
 describe how each protein's share of the binding changes.
 
+**At 43 °C about half of each pull-down is lysate-like.** Measured against the input lysate, the
+pull-downs are selective: the most abundant lysate proteins (glycolytic enzymes, proteasome,
+translation factors) are strongly under-represented, and pull-down level rises with lysate level with
+a slope of only 0.35. At 43 °C the slope rises to 0.6. Each protein's 43 °C level is close to
+0.42 x its 35 °C level + 0.46 x its lysate level. At 37 °C the corresponding fit is 0.93 and 0.07.
+Both co-chaperones give the same mixture. Staurosporine, at any temperature, leaves the composition
+unchanged (coefficient 1.0 and 0.0). This lysate-like part, predicted for each protein from its lysate
+abundance and its 35 °C enrichment, accounts for 45 % of the variance of the 43 °C response; the
+rest is called the *selective* response below.
+
 | Heat response | 43 vs 35 °C | 37 vs 35 °C |
 |:--|--:|--:|
 | Amino-acid composition | 8.9 % | 3.5 % |
 | ESMC, one layer (final) | 25.7 % | 11.4 % |
 | ESMC, nine layers combined | **27.4 %** | **12.7 %** |
+| Lysate-like part, nine layers | 33.4 % | |
+| Selective part, nine layers | **13.1 %** | **9.1 %** |
+
+Sequence predicts the lysate-like part well, because it predicts lysate abundance (51 %) and
+capture at fixed abundance (23-26 %). The change in capture itself is predicted at 13 %.
 
 **Folded cytoplasmic proteins are recruited; disordered and membrane proteins are lost.** The
 features that rise are those of folded enzyme cores (catalase, isocitrate and aldehyde dehydrogenases,
 enolase, TIM barrels, Rossmann folds; structural-motif features over-represented, odds ratio 5.5). Those that fall
 describe long disordered and low-complexity regions and transmembrane segments (membrane features over-represented,
-odds ratio 11.6).
+odds ratio 11.6). These class effects hold in the selective response, at a third to a half of their
+size: enzymes +0.14, soluble cytoplasmic proteins +0.09, transmembrane proteins -0.11, strongly
+disordered proteins -0.17 log2 relative to the rest.
 
-**A protein's starting level matters.** Proteins plentiful in the 35 °C pull-down tend to lose share
-at 43 °C, and scarce ones to gain (correlation -0.43; the starting level explains 16.5 % of the
-response). This is not shared measurement noise: taking the starting level and the response from
-different replicates gives the same correlation. It is regression to the mean in the biological
-sense: the 35 °C and 43 °C binding profiles agree only partly (r = 0.6), so proteins that dominate
-one tend to dominate the other less. In vitro there is also a direct reason: a fixed amount of
-chaperone means that new clients at 43 °C compete with the old. Sequence does not predict the
-response through the starting level: with the level removed, the embedding explains more of what is
-left (28.9 %).
+**The starting-level effect is this loss of selectivity.** Proteins plentiful in the 35 °C
+pull-down tend to lose share at 43 °C (r = -0.42). Split into its two parts, that level acts through
+enrichment, not abundance. Proteins captured well above their lysate level at 35 °C lose share
+(r = -0.68, 46 % of the variance). Abundant lysate proteins, under-represented at 35 °C, gain
+(r = +0.33). The 35 °C quantities and the response come from different replicates, so this is not
+shared measurement noise.
 
-## 4.1 Thermal stability acts through a window
+## 4.1 Less stable proteins gain more
 
 If heat recruits proteins as they begin to unfold, the less stable a protein, the more it should gain.
 Melting temperatures for 9,792 human proteins come from the Meltome atlas (Jarzab et al. 2020;
 thermal proteome profiling, consensus over ten cell lines, reliability 0.96); 87 % of the heat-response
-proteins have one.
+proteins have one. Proteins were sorted by melting temperature into ten equal groups:
 
-**At 43 °C the relation is an inverted U.** Proteins were sorted by melting temperature into ten equal
-groups:
-
-| Melting temperature (°C) | <46.7 | -47.9 | -48.9 | -49.9 | -51.0 | -52.2 | -53.6 | -55.5 | -58.4 | >58.4 |
+| Melting temperature (°C) | <46.8 | -47.9 | -48.9 | -49.9 | -51.0 | -52.2 | -53.6 | -55.5 | -58.5 | >58.5 |
 |:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| Change at 43 vs 35 °C | +0.11 | +0.24 | **+0.41** | +0.38 | +0.37 | +0.34 | +0.27 | +0.21 | +0.10 | +0.02 |
-| Change at 37 vs 35 °C | +0.07 | +0.07 | +0.08 | +0.03 | +0.03 | +0.02 | +0.01 | -0.01 | -0.03 | -0.04 |
+| Lysate abundance | -0.54 | -0.32 | -0.20 | -0.10 | +0.09 | +0.01 | +0.07 | +0.45 | +0.60 | +0.76 |
+| 35 °C enrichment | +0.51 | +0.21 | +0.18 | +0.01 | -0.11 | -0.09 | -0.05 | -0.14 | -0.34 | -0.53 |
+| 43 vs 35 °C, as measured | +0.13 | +0.25 | +0.41 | +0.39 | +0.38 | +0.35 | +0.28 | +0.22 | +0.12 | +0.02 |
+| 43 vs 35 °C, selective | +0.17 | +0.19 | **+0.28** | +0.21 | +0.17 | +0.09 | +0.06 | -0.04 | -0.15 | **-0.37** |
+| 35 to 37 °C, selective | **+0.10** | +0.08 | +0.09 | +0.03 | +0.03 | +0.00 | +0.00 | -0.02 | -0.04 | -0.07 |
+| 37 to 43 °C, selective | +0.06 | +0.11 | **+0.19** | +0.18 | +0.15 | +0.09 | +0.06 | -0.02 | -0.11 | -0.30 |
 
-![Mean change in each protein's share of co-chaperone binding, by melting temperature (normalised;
-in absolute terms every group gains, see the table below). A: at 43 °C the gain rises with decreasing
-stability down to a melting temperature of about 48 °C, then falls for the least stable proteins,
-which responded earlier (shaded: the binding window); at 37 °C it rises steadily as stability
-decreases. B: at 43 °C,
-complex subunits (purple) show the window more sharply than other proteins (grey). Error bars, one
-standard error.](figures/heat_tm_window.png){width=100%}
+*Lysate abundance and enrichment: medians relative to all proteins. Responses: means, log2.*
 
-Reading the 43 °C curve from right to left: the most stable proteins (melting above 58 °C) are hardly
-affected by 43 °C and gain nothing (+0.02). As stability decreases, the gain grows, and it peaks for
-proteins that melt at 48-52 °C (+0.41), 5-8 °C above the incubation temperature. For the least stable
-proteins, melting below 47 °C, the gain falls again (+0.11). So the relation rises and then falls,
-and a straight-line correlation, which averages the two halves, is close to zero (rho = -0.04). The
-curvature is statistically clear (quadratic term -0.073 [-0.095, -0.050], peak at 51 °C), appears with
-melting temperatures from HEK293T, K562 or Jurkat alone, and survives adjustment for protein class
-and starting level. At 37 °C, where nothing is near its melting point, the relation is the simple one:
-the least stable proteins gain most (slope -0.038 [-0.046, -0.028]).
+![Mean change in co-chaperone binding by melting temperature. A: the 43 vs 35 °C response as measured
+(grey) is the sum of a lysate-like part (tan), which favours stable, abundant proteins, and a
+selective part (red), which falls steadily with stability; the selective 37 vs 35 °C response (blue)
+does the same, more weakly. B: in the selective 43 °C response, complex subunits (purple) gain more
+than other proteins (grey) at intermediate stability. Error bars, one standard error.](figures/heat_tm_selective.png){width=100%}
 
-**Each protein's binding switches on over a temperature range set by its stability.** Two facts
-explain the inverted U. First, it describes each protein's *share* of the binding: total binding
-nearly doubles at 43 °C, and in absolute terms every stability group gains (by +0.9 to +1.3 log2;
-table below), the least stable included. Second, splitting the 35 to 43 °C change into its two steps
-shows that proteins respond at different temperatures according to their stability:
+**As measured, the relation is an inverted U.** The gain peaks for proteins melting at 48-52 °C and
+falls for both the most and the least stable.
 
-| Melting temperature (°C) | <46.7 | -47.9 | -48.9 | -49.9 | -51.0 | -52.2 | -53.6 | -55.5 | -58.4 | >58.4 |
-|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
-| Step 35 to 37 °C | **+0.07** | +0.07 | +0.08 | +0.03 | +0.03 | +0.02 | +0.01 | -0.01 | -0.02 | -0.04 |
-| Step 37 to 43 °C | +0.04 | +0.18 | +0.32 | **+0.36** | +0.34 | +0.33 | +0.26 | +0.22 | +0.13 | +0.06 |
-| 35 to 43 °C, absolute | +0.99 | +1.12 | **+1.28** | +1.26 | +1.24 | +1.22 | +1.14 | +1.09 | +0.98 | +0.89 |
+**The downturn for the least stable proteins comes from the lysate shift.** The least stable proteins
+are scarce in the lysate (-0.54) but already enriched at 35 °C (+0.51), and the lysate-like part of the
+43 °C pull-down favours abundant, unenriched proteins. With that part removed, the gain falls steadily
+as stability rises. The least stable proteins gain about +0.2 and the most stable lose -0.37: a slope of
+-0.18 per standard deviation of melting temperature [-0.20, -0.16], against -0.07 as measured. A mild
+curvature remains (-0.05 [-0.07, -0.03]).
 
-*Mean change, log2, for the 7,115 proteins detected at all three temperatures. "Absolute" adds back
-the overall rise removed by normalisation.*
+**Each protein's binding rises over a temperature range set by its stability.** The two steps show
+it, and the 35 to 37 °C step is hardly touched by the lysate shift:
 
-The least stable proteins gain most between 35 and 37 °C and then hardly change between 37 and 43 °C
-(+0.04, against +0.34 for proteins melting at 48-52 °C; p = 2e-15). Proteins of intermediate
-stability barely move up to 37 °C and respond strongly between 37 and 43 °C. The most stable have
-hardly begun by 43 °C. Each protein's binding thus rises over a temperature range that tracks its
-stability, and comparing 43 with 35 °C catches each protein at a different point of its own
-transition: the least stable have already finished, the intermediate ones are mid-transition, and
-the most stable have not started. The least stable proteins did not start out more bound (their
-level in the 35 °C pull-down matches the others'), and western blots show the soluble proteins do
-not change across temperature, so the downturn reflects when binding happens, not loss of protein
-from solution. Soluble aggregates that do not pellet would still appear soluble on a blot, so that
-alternative is not entirely excluded.
+- the least stable proteins gain most between 35 and 37 °C, and little after;
+- proteins melting near 48-52 °C gain most between 37 and 43 °C;
+- the most stable lose share.
 
-**But stability explains little of the heat response.** Melting temperature, with its curvature,
-explains 1.2 % of the 43 °C response and adds 0.8 points to the sequence model; the sequence model's
-predictions do not correlate with melting temperature at all (r = 0.01). The protein classes above
-(folded cytoplasmic versus disordered or membrane) act independently of stability. Proteins that the
-Meltome atlas could not melt, mostly disordered transcription factors, fall with heat (-0.43, against
-+0.24 for the rest).
+**Stability explains part of the selective response.** Melting temperature explains 5.5 % of the
+selective 43 °C response, against 1.0 % as measured. The protein classes above act on top of it.
+Proteins that the Meltome atlas could not melt, mostly disordered transcription factors, fall with heat
+(-0.25, against +0.06 for the rest).
 
 ## 4.2 Protein complexes
 
@@ -219,19 +219,21 @@ Heat can also dissociate complexes, turning their subunits into clients whatever
 Using 2,167 curated human complexes (EBI Complex Portal), 2,471 of the heat-response proteins are
 subunits.
 
-- **Subunits gain more at 43 °C**, at matched melting temperature, starting level and location:
-  +0.17 log2 [+0.12, +0.22], against +0.04 at 37 °C. The effect is heat-dependent.
-- **They show the window more sharply** (figure, B): in the middle third of melting temperatures
-  subunits gain +0.45 against +0.28 for other proteins; among the least stable, +0.21 against +0.30.
-- **Subunits of a complex move together**: 24 % of the variance left after removing level, stability
-  and location is shared within a complex. It is at least as strong at 37 °C, so it is not caused by heat;
-  pull-downs carry intact complexes along with whichever subunit the chaperone holds.
-- **Which complexes**: translation initiation factor eIF3 (+2.7, 13 subunits), the COPII vesicle coat,
-  the COP9 signalosome and GINS gain most; chromatin-bound nuclear complexes (nucleosomes, the
-  chromosomal passenger complex, CDK-activating kinase) lose most.
+- **Subunits gain more at 43 °C**, at matched melting temperature and location: +0.10 log2
+  [+0.06, +0.14] in the selective response, against +0.02 at 37 °C. The effect is heat-dependent.
+  In the response as measured it is hidden (-0.02), because the lysate-like part runs against
+  subunits.
+- **The gain sits at intermediate stability** (figure, B). It is clearest for proteins melting at
+  50-53 °C.
+- **Subunits of a complex move together.** About a fifth of the variance of the selective response is
+  shared within a complex (22 % against random proteins, 10 % against subunits of other complexes).
+  It is at least as strong at 37 °C, so it is not caused by heat: pull-downs carry intact complexes
+  along with whichever subunit the chaperone holds.
+- **Which complexes.** Translation initiation factor eIF3 (+1.6, 13 subunits), the COPII vesicle coat
+  and GINS gain most. CDK-activating kinase, the SET complex and VCP-NPL4-UFD1 lose most.
 
-Membership accounts for under 1 % of the response, like melting temperature: both point to real
-mechanisms, neither is the main driver.
+Membership accounts for 0.5 % of the selective response, and melting temperature for 5.5 %: both
+point to real mechanisms, neither is the main driver.
 
 ## 4.3 Proteins that appear at 43 °C
 
@@ -239,8 +241,10 @@ mechanisms, neither is the main driver.
 would give. They are the extreme of the same response: a model trained without them or their
 relatives predicts them to rise (AUC 0.70 against proteins of matched intensity; 0.83 for the
 strictest definition), they are cytoplasmic and rarely membrane proteins, and their melting
-temperature is ordinary (median 51 °C). They are listed as candidate heat-recruited clients in
-`reports/additional/heat43_appearing_proteins.tsv`.
+temperature is ordinary (median 51 °C). 84 % of them are in the input lysate, at below-median
+abundance (36th percentile), so they are soluble proteins captured selectively at 43 °C, not the
+lysate-like shift, which favours abundant proteins. They are listed as candidate heat-recruited
+clients in `reports/additional/heat43_appearing_proteins.tsv`.
 
 # 5. Staurosporine
 
@@ -271,11 +275,18 @@ Since staurosporine acts in the lysate, there is no cellular turnover: these are
 (or in solubility). The reading that fits is that the drug, sitting in the ATP site, stabilises the kinase fold, and a
 stabilised kinase is no longer held by the co-chaperone.
 
+**The more of a kinase is bound, the more it loses.** Kinases abundant in the control pull-down
+lose most. With the lysate measured, both parts of that level predict the loss: lysate abundance
+(rank slope -0.2 to -0.4) and enrichment over the lysate (-0.4 to -0.55), from replicates disjoint
+from those of the response. Across all proteins the drug response is unrelated to either, so this is
+specific to kinases: the drug releases bound kinase.
+
 **Not through HSP90.** Kinome-wide HSP90 client data (Taipale et al. 2012; 211 of these kinases) show
 that the kinases that lose most are *not* HSP90 clients: non-clients fall most (-0.29 to -0.37) and
 strong clients least (-0.03 to -0.12), and stronger HSP90 binding predicts a smaller loss (rho +0.24,
-p = 6e-4 at 43 °C). In the lysate, strong HSP90 clients may remain held by the endogenous
-HSP90-CDC37 machinery rather than by the added co-chaperone, and so have less to lose.
+p = 6e-4 at 43 °C), even though strong clients are the most enriched kinases in the control
+pull-downs (+0.54 log2 over the median kinase). In the lysate, strong HSP90 clients may remain held
+by the endogenous HSP90-CDC37 machinery, and so be released less by the drug.
 
 **The AGC exception.** The PKC isoforms, PKN and PKG bind staurosporine as tightly as any kinase
 (dissociation constants 0.2-50 nM) yet *gain* binding (PKG1 +4.4, PKCtheta +2.2, PKN2 +1.5). The
@@ -328,9 +339,9 @@ those proteins in the same way for both. The one systematic difference is that h
 preferences. The spread of preferences across proteins falls from 0.54 log2 at 35 °C to 0.36 at
 43 °C, and each protein keeps about 40 % of its 35 °C preference on the log scale: a protein 1.5-fold
 more abundant in the DNAJB11 pull-down at 35 °C is about 1.2-fold more abundant at 43 °C. Nothing
-reproducible remains beyond this uniform shrinkage. The two pull-downs converge as the temperature
-rises, as expected if the clients that heat recruits are bound similarly by both co-chaperones and
-dilute their original preferences.
+reproducible remains beyond this uniform shrinkage. It is what the lysate shift predicts: if each
+43 °C pull-down is 0.42 x its 35 °C self plus a lysate-like part common to both co-chaperones, each
+preference keeps 42 % of its 35 °C size.
 
 # 7. Across experiments
 
@@ -343,13 +354,14 @@ responses; each has its own determinants.
 
 # 8. What would test these readings next
 
-- **One input lysate.** Since every reaction started from the same lysate, measuring it once separates
-  a protein's amount in the lysate from how strongly it binds, and turns the starting-level effect into
-  a binding measure.
+- **A pull-down without bait at 35 and 43 °C.** It would show whether the lysate-like half of the
+  43 °C pull-downs is bound by the co-chaperones or captured without them (soluble aggregates, bead
+  binding). Western blots of the soluble proteins cannot decide this, because the pull-downs take up
+  very little protein.
 - **Binding at more temperatures.** Pull-downs at, say, 39 and 41 °C would trace each protein's
   transition directly, and test whether its midpoint follows its stability.
 - **Melting temperatures measured in this lysate.** The Meltome values come from other cells and a
-  three-minute heat pulse; lysate-specific values would sharpen the window.
+  three-minute heat pulse; lysate-specific values would sharpen the stability relation.
 
 # Notes on methods
 
@@ -359,6 +371,7 @@ responses; each has its own determinants.
   own statistics.
 - Weighting proteins by their measurement noise was tested and does not help: noise is too small a
   part of the variance for the salt and heat responses.
-- Detailed analyses are in `reports/additional/additional_text_1` to `_7`: thermal stability (1),
+- Detailed analyses are in `reports/additional/additional_text_1` to `_8`: thermal stability (1),
   kinases and staurosporine (2), cross-experiment structure (3), normalisation (4), proteins that
-  appear or vanish (5), combining layers (6), complexes (7).
+  appear or vanish (5), combining layers (6), complexes (7), the input lysate (8). Where texts 1
+  and 7 describe the heat response as measured, text 8 gives the selective version.
