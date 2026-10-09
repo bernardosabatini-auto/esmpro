@@ -1,0 +1,4 @@
+{"layers": [50, 80],
+ "defaults": {"heads": 8, "dv": 64, "da": 128, "p": 128, "h": 1024, "k": 64, "epochs": 30, "budget": 120000,
+              "lr": [1e-4, 3e-4, 1e-3], "wd": [1e-2, 1e-1, 3e-1], "drop": [0.2, 0.4], "seeds": 2},
+ "groups": [{"name": "attn2_h8_da128"}, {"name": "attn2_h16_da128", "heads": 16}, {"name": "attn2_h8_da128_k128", "k": 128}]}

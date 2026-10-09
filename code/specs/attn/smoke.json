@@ -1,0 +1,4 @@
+{"layers": [50, 80],
+ "defaults": {"heads": 4, "dv": 64, "da": 64, "p": 128, "h": 1024, "k": 64, "epochs": 12, "budget": 60000,
+              "lr": [1e-3, 3e-3], "wd": [1e-2], "drop": [0.2], "seeds": 2},
+ "groups": [{"name": "attn_smoke"}]}

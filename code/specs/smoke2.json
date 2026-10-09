@@ -1,0 +1,4 @@
+{"layers": [50], "sae": true, "simple": true,
+ "defaults": {"mode": "proj", "p": 64, "s": 128, "h": 256, "k": 32, "epochs": 150, "batch": 512,
+              "lr": [3e-4, 1e-3, 3e-3], "wd": [1e-3, 1e-2, 1e-1], "drop": [0.1, 0.3], "in_drop": [0.2, 0.5], "seeds": 2},
+ "groups": [{"name": "smoke2"}]}

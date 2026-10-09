@@ -1,0 +1,74 @@
+{
+ "layers": [
+  50,
+  80
+ ],
+ "sae": false,
+ "simple": true,
+ "targets": [
+  "GA20_ip_base",
+  "GA20_salt75",
+  "GA20_salt150",
+  "GA33_input",
+  "GA33_A1_ip_base",
+  "GA33_A1_enrich",
+  "GA33_A1_heat37",
+  "GA33_A1_heat43",
+  "GA33_B11_ip_base",
+  "GA33_B11_enrich",
+  "GA33_B11_heat37",
+  "GA33_B11_heat43",
+  "FS73_ip_base",
+  "GA22_ip_base",
+  "GA22_ip_salt60",
+  "GA22_ip_salt120",
+  "GA22_sup_base",
+  "GA22_sup_salt60",
+  "GA22_sup_salt120",
+  "GA22_part_base",
+  "GA22_part_salt60",
+  "GA22_part_salt120",
+  "GA24_ip_base",
+  "GA24_ip_salt60",
+  "GA24_ip_salt120",
+  "GA24_sup_base",
+  "GA24_sup_salt60",
+  "GA24_sup_salt120",
+  "GA24_part_base",
+  "GA24_part_salt60",
+  "GA24_part_salt120"
+ ],
+ "defaults": {
+  "lr": [
+   0.0003,
+   0.001,
+   0.003
+  ],
+  "wd": [
+   0.001,
+   0.01,
+   0.1
+  ],
+  "drop": [
+   0.1,
+   0.3
+  ],
+  "in_drop": [
+   0.2,
+   0.5
+  ],
+  "seeds": 2,
+  "epochs": 150,
+  "batch": 512
+ },
+ "groups": [
+  {
+   "name": "loro_FS76",
+   "mode": "proj",
+   "p": 128,
+   "s": 128,
+   "h": 1024,
+   "k": 64
+  }
+ ]
+}

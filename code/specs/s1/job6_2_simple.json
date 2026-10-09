@@ -1,0 +1,62 @@
+{
+ "layers": [],
+ "sae": false,
+ "simple": true,
+ "defaults": {
+  "lr": [
+   0.0003,
+   0.001,
+   0.003
+  ],
+  "wd": [
+   0.001,
+   0.01,
+   0.1
+  ],
+  "drop": [
+   0.1,
+   0.3
+  ],
+  "in_drop": [
+   0.2,
+   0.5
+  ],
+  "seeds": 2,
+  "epochs": 150,
+  "batch": 512
+ },
+ "groups": [
+  {
+   "name": "simple_proj_p32_s128_h1024_k64",
+   "mode": "proj",
+   "p": 32,
+   "s": 128,
+   "h": 1024,
+   "k": 64
+  },
+  {
+   "name": "simple_proj_p32_s128_h1024_k16",
+   "mode": "proj",
+   "p": 32,
+   "s": 128,
+   "h": 1024,
+   "k": 16
+  },
+  {
+   "name": "simple_proj_p32_s128_h256_k64",
+   "mode": "proj",
+   "p": 32,
+   "s": 128,
+   "h": 256,
+   "k": 64
+  },
+  {
+   "name": "simple_proj_p32_s128_h256_k16",
+   "mode": "proj",
+   "p": 32,
+   "s": 128,
+   "h": 256,
+   "k": 16
+  }
+ ]
+}
