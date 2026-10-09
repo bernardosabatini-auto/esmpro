@@ -1,0 +1,17 @@
+# FS73: anticonvulsant screen. HA-HSPB1 (2 ug) pull-down from 1 mg HEK293 lysate, 37 C, 1 % TX100.
+# Drugs added to lysate at 10 or 100 uM; control = no drug. 6 BR per arm, 7 outlier samples excluded upstream.
+name: FS73
+title: Anticonvulsant screen (HSPB1 pull-down, 37 C)
+source: data/fs_data/FS_73_full_results__Targets.tsv
+fields: [bait, temp, drug, conc, BR]
+numeric: [conc]
+condition: [drug, conc]
+control: "ctl|0"
+contrasts:            # name: [treated condition, control condition]
+  car_10: ["carbamazepine|10", "ctl|0"]
+  car_100: ["carbamazepine|100", "ctl|0"]
+  lam_10: ["lamotrigene|10", "ctl|0"]
+  lam_100: ["lamotrigene|100", "ctl|0"]
+  top_10: ["topiramate|10", "ctl|0"]
+  top_100: ["topiramate|100", "ctl|0"]
+published_logfc: "{name}_logFC"
