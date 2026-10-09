@@ -19,7 +19,7 @@ pipeline reproduces the lab's limma estimates in both workbooks (r 0.91-0.998 pe
 | Broad change of the pull-down | none for any drug | none for Li; very large for Mg^2+^ |
 | Proteins that change | 21 hits, all robust to dropping any replicate | 30 Li hits, almost all down |
 | What the hits are | lamotrigine: DHFR (a known lamotrigine target), the nucleoside kinases DCK and TK2, GART, PP4 subunits, p38 and JNK kinases; topiramate: the carbonic anhydrase CA5B | Mg^2+^-dependent enzymes (3.3-fold enriched); the BAG6-GET4-UBL4A complex |
-| Main conclusion | the hits look like drug binding pulling a protein off HSPB1 (target engagement), not a change in HSPB1 itself | at low Mg^2+^, Li^+^ acts like extra Mg^2+^ on these proteins; at 2.5 mM Mg^2+^ it does almost nothing |
+| Main conclusion | the hits look like the drug acting on its target protein, not on HSPB1. Lamotrigine and topiramate targets come off HSPB1, as if binding stabilises them; most carbamazepine hits come on, as if binding opens them | at low Mg^2+^, Li^+^ acts like extra Mg^2+^ on most hits; at 2.5 mM Mg^2+^ it does almost nothing. The two subunits of pyruvate dehydrogenase E1 rise instead |
 
 The screens differ in kind from the temperature and salt experiments (GA_20, GA_33). There, thousands
 of proteins move together. Here the treatments leave the pull-down as a whole unchanged and move a few
@@ -116,10 +116,29 @@ detected, and it drops at both doses. The other, CA9, does not move.
 **Carbamazepine.** Its hits go in both directions and have no obvious shared target. FUS and EWSR1
 rise together, both FET-family RNA-binding proteins.
 
-The simplest reading is the one used in thermal proteome profiling. A drug that binds a protein
-stabilises it, and a stabilised protein is a poorer chaperone client, so less of it comes down with
-HSPB1. On this reading the pull-down acts as a target-engagement readout. That fits all lamotrigine
-hits going down. It does not explain the carbamazepine hits that go up.
+**Two ways a drug can change the pull-down.** Thermal proteome profiling sees both kinds of ligand.
+Most stabilise their target, and some destabilise it.
+
+- **Binding closes or stabilises the protein.** The drug fills a pocket, the protein becomes more
+  compact, or the drug sits on the surface HSPB1 would bind. Less comes down.
+- **Binding opens the protein.** The drug shifts a domain, exposes a hydrophobic patch, or loosens a
+  subunit interface. More comes down.
+
+Either way the pull-down reports that the drug acts on the protein. The direction says which
+mechanism.
+
+| Drug | Hits down / up | Top 50 down | Reading |
+|----------|----------|-------|----------------------------------|
+| lamotrigine 100 $\mu$M | 12 / 0 (binomial p 0.0005) | 48 of 50 | consistently stabilising or occluding; already visible at 10 $\mu$M for DCK, TRERF1, PTP4A1, PPP4R2/R3A, MAPK14 |
+| topiramate 10 $\mu$M | 2 / 0 | 26 of 50 | CA5B down at both doses |
+| carbamazepine 100 $\mu$M | 2 / 5 | 31 of 50 | mostly opening: ADH5 already up at 10 $\mu$M (+0.19, p 0.004), GALE nearly (+0.27, p 0.07); FUS, EWSR1 and PSME4 rise only at 100 $\mu$M |
+
+So the opening mechanism probably accounts for most of the carbamazepine hits. ADH5 and GALE rise
+with dose, which is what a binding event should do. FUS and EWSR1 rise together and only at the high
+dose. They are FET-family proteins with long disordered low-complexity regions, so a small molecule
+at 100 $\mu$M could change their conformation or their tendency to condense. Condensates or
+aggregates that pellet with the beads would also raise their level without any HSPB1 binding, so the
+FET pair is the least certain of these.
 
 ## 3.3 Dose and drug agreement, on disjoint replicates
 
@@ -210,6 +229,14 @@ plainly: on these proteins Li^+^ fills the metal site that Mg^2+^ would fill, an
 enzyme binds HSPB1 less. This again fits "ligand-bound means less chaperone-bound". Here the ligand
 is the metal ion.
 
+Eight of the 30 hits do not follow this pattern, and two of them stand out. PDHA1 and PDHB, the two
+subunits of the pyruvate dehydrogenase E1 enzyme, both rise with Li at low Mg^2+^ (+0.30 and +0.21 at
+10 mM). Raising Mg^2+^ leaves them unchanged (+0.02, -0.02). E1 binds its thiamine diphosphate
+cofactor through Mg^2+^. A Li^+^ in that site is not a substitute for Mg^2+^: it may leave the
+cofactor loosely held and the enzyme more open, so more comes down. This is the opening mechanism,
+with the metal ion as the ligand. Two partners of the SKI complex, SKIC2 and SKIC3, fall with Li but
+rise with Mg^2+^, which is another sign that Li^+^ does not always act like Mg^2+^.
+
 Across all proteins, Li does not resemble the Mg effect (panel B, r 0.03). Mg^2+^ acts on thousands of
 proteins and through many routes, while Li^+^ mimics it only at a few vacant metal sites.
 
@@ -251,6 +278,10 @@ for every screen. Mg^2+^ and NaCl change the pull-down in largely different ways
 - **Pull-down only.** Without input, "less in the pull-down" cannot be split into less binding and
   less in solution. Drug-induced precipitation of DCK or DHFR would look the same here. An input
   measurement of the lamotrigine and 10 mM Li arms would settle it.
+- **A rise has two explanations as well.** More of a protein in the pull-down can mean the drug
+  opened it, so HSPB1 binds it. It can also mean the drug made it aggregate or condense, so it
+  pellets with the beads with or without HSPB1. The second is most plausible for FUS and EWSR1. A
+  bead-only pull-down with and without carbamazepine separates the two.
 - **The Mg effect could be partly a batch effect.** It is huge and perfectly reproducible, and the
   bait itself drops 0.35 log2. If the two Mg arms were prepared or run as separate batches, part of
   the effect could be processing. The data cannot tell; the run order can.
@@ -266,8 +297,14 @@ for every screen. Mg^2+^ and NaCl change the pull-down in largely different ways
 2. What is the base NaCl concentration in FS76? At 10 mM Li, how much of the NaCl was replaced?
 3. Which vehicle was used for the drugs in FS73, and does the control arm contain it?
 4. Is input (lysate) available for any arm? The lamotrigine 100 $\mu$M and Li 10 mM / Mg 0.25 mM arms
-   would test the "drug-bound means less chaperone-bound" reading directly.
-5. Next on our side:
+   would show whether a fall in the pull-down is a fall in binding.
+5. To tell opening from stabilising directly, three experiments would help:
+   - limited proteolysis (LiP-MS) or a thermal shift on the same lysate with drug: an opened protein
+     is cut more and melts lower, a stabilised one the reverse;
+   - a bead-only pull-down with carbamazepine 100 $\mu$M, which shows whether the risers need HSPB1;
+   - for PDH, Li titrated against thiamine diphosphate, which should reverse the rise if Li acts by
+     loosening the cofactor.
+6. Next on our side:
    - a sequence model for the Mg effect, which is reproducible (ceiling 98%) and mostly unexplained
      by protein class (4.4%);
    - running GA_20, GA_33 and the GA_22/24 supernatants through the same pipeline, so every screen
