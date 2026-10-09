@@ -19,7 +19,7 @@ pipeline reproduces the lab's limma estimates in both workbooks (r 0.91-0.998 pe
 | Broad change of the pull-down | none for any drug | none for Li; very large for Mg^2+^ |
 | Proteins that change | 21 hits, all robust to dropping any replicate | 30 Li hits, almost all down |
 | What the hits are | lamotrigine: DHFR (a known lamotrigine target), the nucleoside kinases DCK and TK2, GART, PP4 subunits, p38 and JNK kinases; topiramate: the carbonic anhydrase CA5B | Mg^2+^-dependent enzymes (3.3-fold enriched); the BAG6-GET4-UBL4A complex |
-| Main conclusion | the hits look like the drug acting on its target protein, not on HSPB1. Lamotrigine and topiramate targets come off HSPB1, as if binding stabilises them; most carbamazepine hits come on, as if binding opens them | at low Mg^2+^, Li^+^ acts like extra Mg^2+^ on most hits; at 2.5 mM Mg^2+^ it does almost nothing. The two subunits of pyruvate dehydrogenase E1 rise instead |
+| Main conclusion | the hits look like the drug acting on its target protein, not on HSPB1. Lamotrigine and topiramate targets come off HSPB1, as if binding stabilises them; most carbamazepine hits come on, as if binding opens them | at low Mg^2+^, Li^+^ acts like extra Mg^2+^ on most hits; at 2.5 mM Mg^2+^ it does almost nothing. About 11 proteins change in ways Mg does not predict: a Na^+^/Li^+^ transporter (SLC9A7), pyruvate dehydrogenase E1, the SKI complex, and several ATP/GTP enzymes |
 
 The screens differ in kind from the temperature and salt experiments (GA_20, GA_33). There, thousands
 of proteins move together. Here the treatments leave the pull-down as a whole unchanged and move a few
@@ -243,6 +243,59 @@ proteins and through many routes, while Li^+^ mimics it only at a few vacant met
 The Mg^2+^ annotation is incomplete. Neither GDPD1 nor HDHD5 counts as Mg^2+^-dependent here, though
 their families use divalent metals. The enrichment is therefore probably understated.
 
+## 4.5 Lithium effects that Mg^2+^ does not predict
+
+The Mg^2+^ relation above explains most Li hits. To find the rest, each protein is held to the most
+generous version of that explanation: 10 mM Li at 0.25 mM Mg^2+^ doing everything that 2.5 mM Mg^2+^
+does. A Li effect counts as Li-specific only if two conditions hold:
+
+- the Li effect itself is significant (q <= 0.05 over all proteins);
+- it exceeds that full-mimicry prediction in its own direction (p <= 0.05).
+
+![Li effect at 10 mM (low Mg) against the Mg effect, all proteins. The shaded wedge, between zero and the identity line, is what Mg mimicry can explain, from none to complete. Blue: Li hits inside it. Red: Li hits outside it.](../figures/FS76/li_specific_scatter.png){width=70%}
+
+Of the 27 proteins with a significant 10 mM Li effect, 15 fall inside the wedge (Mg-like) and 12
+fall outside. One of the 12, INTU, was detected in a single 10 mM sample and is dropped. The other 11
+are graded with dose: the 3 and 5 mM arms, which are separate samples, move the same way (dose
+correlation -0.77 to -1.00, ATF6B -0.60). Each survives leaving out any replicate.
+
+![Dose curves of the Li-specific proteins (blue: 0.25 mM Mg^2+^, orange: 2.5 mM), and two Mg-like hits that were also flagged at high Mg.](../figures/FS76/li_specific_curves.png){width=100%}
+
+| Kind | Protein | Li 10 mM (log2) | Mg effect | What it is |
+|---|---|---|---|---|
+| Mg does nothing | SLC9A7 | -1.03 | -0.01 | NHE7, a Na^+^(K^+^)/H^+^ exchanger: its transport site binds Na^+^ and Li^+^ |
+| | PDHA1 | +0.29 | +0.06 | pyruvate dehydrogenase E1$\alpha$; Mg^2+^-thiamine diphosphate site (PDHB, its partner, also rises) |
+| | HMGCS1 | -0.28 | +0.08 | HMG-CoA synthase |
+| | GARS1 | -0.24 | -0.02 | glycyl-tRNA synthetase (ATP) |
+| | DNM1L | -0.24 | -0.07 | DRP1, mitochondrial fission GTPase |
+| | ATF6B | -0.73 | +0.11 | ER-stress transcription factor (weakest grading) |
+| Opposite to Mg | SKIC2 | -0.22 | +0.28 | SKI complex RNA helicase (ATP) |
+| | SKIC3 | -0.22 | +0.24 | SKI complex scaffold, SKIC2's partner |
+| Beyond the Mg level | TSR1 | -0.69 | -0.21 | ribosome-assembly factor (GTPase-like fold) |
+| | PC | -0.39 | -0.23 | pyruvate carboxylase (ATP, biotin; activated by K^+^) |
+| | GET4 | -1.43 | -1.22 | BAG6 complex; mostly Mg-like, slightly beyond |
+
+These proteins point to two ways lithium could act that Mg cannot mimic.
+
+- **A monovalent-cation site.** In this design Li^+^ replaces Na^+^. SLC9A7 transports Na^+^ and
+  Li^+^, and PC is activated by monovalent cations. Here the change could come from Li^+^ in the site
+  or from losing Na^+^; the design cannot tell which.
+- **Li^+^ alongside Mg^2+^ on a nucleotide.** Five of the 11 bind ATP or GTP (TSR1, DNM1L, GARS1,
+  SKIC2, PC), against 15% of all proteins (p 0.017). Li^+^ is known to bind together with Mg^2+^ on the
+  phosphate chain of ATP and GTP rather than replace it, and raising Mg^2+^ would not reproduce that.
+  This is a lead, not a result. The set is small, and it is not clearly different from the Mg-like
+  hits (3 of 15; p 0.22).
+
+Two pairs of complex partners move together: SKIC2 with SKIC3, and PDHA1 with PDHB. A single noisy
+protein would not do that, so the pairs make these calls more credible.
+
+**The high-Mg arms are not fully consistent.** At 2.5 mM Mg^2+^, the 3 and 5 mM Li arms carry a faint
+copy of the low-Mg Li profile among the top 50 responders. It is about one sixth of the low-Mg size
+(r 0.44 and 0.62), and all four 5 mM samples show it. That would fit a small residual Li effect when
+the Mg sites are mostly full. But the 10 mM arm at high Mg shows none of it (r -0.12), so many curves
+dip at 5 mM and rebound at 10 mM. A real effect should not vanish at the highest dose. The Li effects
+"at high Mg" (GET4, PC, TSR1, ALDH18A1, ADK) therefore lean on the 5 mM dip and are tentative.
+
 # 5. Across screens
 
 ![HSPB1 control pull-downs on the 5,194 proteins quantified in all four (log2, centred). Each panel has the regression line, r and slope.](../figures/cross/control_levels.png){width=78%}
@@ -293,8 +346,11 @@ for every screen. Mg^2+^ and NaCl change the pull-down in largely different ways
 # 7. Questions for the lab and next steps
 
 1. Were the two Mg^2+^ arms processed and injected interleaved, or as blocks? This decides how much of
-   the 6,129-protein Mg effect is chemistry.
-2. What is the base NaCl concentration in FS76? At 10 mM Li, how much of the NaCl was replaced?
+   the 6,129-protein Mg effect is chemistry. Please also check the 2.5 mM Mg / 10 mM Li arm: it
+   lacks the faint Li effect that the 3 and 5 mM arms at the same Mg show.
+2. What is the base NaCl concentration in FS76? At 10 mM Li, how much of the NaCl was replaced? A
+   control that removes the same NaCl without adding Li (choline or K^+^ in its place) would separate
+   Li-specific effects (SLC9A7, PC) from effects of losing Na^+^.
 3. Which vehicle was used for the drugs in FS73, and does the control arm contain it?
 4. Is input (lysate) available for any arm? The lamotrigine 100 $\mu$M and Li 10 mM / Mg 0.25 mM arms
    would show whether a fall in the pull-down is a fall in binding.
