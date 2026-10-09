@@ -384,7 +384,7 @@
 <li>trunks of 256-2,048;</li>
 <li>150 or 300 epochs.</li>
 </ul>
-<p>The SAE as an input is worse than the dense layers: 0.18 alone, nothing added on top. Attention pooling over residues, at 4, 8 or 16 heads, equals mean pooling. The ensemble’s members are nearly interchangeable (best member vs top-8 mean: r 0.9996).</p>
+<p>The SAE as an input is worse than the dense layers: 0.18 alone, nothing added on top. Attention pooling over residues, at 4, 8 or 16 heads (seven configurations, 0.268-0.273 of ceiling), equals mean pooling. The ensemble’s members are nearly interchangeable (best member vs top-8 mean: r 0.9996).</p>
 <p>The limit is what ESMC-6B’s representation carries about these measurements, not the read-out.</p>
 <p><strong>The one weakness.</strong> Adding sequence to the measured covariates lowers abundance (0.729 → 0.703) and a few individual baselines. The combined model’s regularisation does not fully adapt when one input block is far more informative than the other. A residual design (sequence predicting what the covariates leave) would avoid this.</p>
 <h1 id="b.-fold-changes-alone-each-perturbation-from-sequence-with-no-input-information">3b. Fold changes alone: each perturbation from sequence, with no input information</h1>

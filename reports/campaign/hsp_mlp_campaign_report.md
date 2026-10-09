@@ -173,7 +173,7 @@ dropped because it is the abundance input.
 - 150 or 300 epochs.
 
 The SAE as an input is worse than the dense layers: 0.18 alone, nothing added on top. Attention pooling
-over residues, at 4, 8 or 16 heads, equals mean pooling. The ensemble's members are nearly
+over residues, at 4, 8 or 16 heads (seven configurations, 0.268-0.273 of ceiling), equals mean pooling. The ensemble's members are nearly
 interchangeable (best member vs top-8 mean: r 0.9996).
 
 The limit is what ESMC-6B's representation carries about these measurements, not the read-out.
