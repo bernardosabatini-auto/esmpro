@@ -134,7 +134,8 @@ describe how each protein's share of the binding changes.
 **At 43 °C about half of each pull-down is lysate-like.** Measured against the input lysate, the
 pull-downs are selective: the most abundant lysate proteins (glycolytic enzymes, proteasome,
 translation factors) are strongly under-represented, and pull-down level rises with lysate level with
-a slope of only 0.35. At 43 °C the slope rises to 0.6. Each protein's 43 °C level is close to
+a slope of only 0.35. Why it is so low is open: known client properties and sample load do not
+explain it (additional text 9). At 43 °C the slope rises to 0.6. Each protein's 43 °C level is close to
 0.42 x its 35 °C level + 0.46 x its lysate level. At 37 °C the corresponding fit is 0.93 and 0.07.
 Both co-chaperones give the same mixture. Staurosporine, at any temperature, leaves the composition
 unchanged (coefficient 1.0 and 0.0). This lysate-like part, predicted for each protein from its lysate
@@ -371,7 +372,8 @@ responses; each has its own determinants.
   own statistics.
 - Weighting proteins by their measurement noise was tested and does not help: noise is too small a
   part of the variance for the salt and heat responses.
-- Detailed analyses are in `reports/additional/additional_text_1` to `_8`: thermal stability (1),
+- Detailed analyses are in `reports/additional/additional_text_1` to `_9`: thermal stability (1),
   kinases and staurosporine (2), cross-experiment structure (3), normalisation (4), proteins that
-  appear or vanish (5), combining layers (6), complexes (7), the input lysate (8). Where texts 1
+  appear or vanish (5), combining layers (6), complexes (7), the input lysate (8), why abundant
+  proteins are under-represented, with proposed controls (9). Where texts 1
   and 7 describe the heat response as measured, text 8 gives the selective version.

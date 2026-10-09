@@ -142,6 +142,7 @@ for nm, (accs, y, fid, G) in TG.items():
     rec = dict(layers={int(l): r2(y, P_layer[i]) for i, l in enumerate(LAY)}, chosen=r2(y, P_choice), stacked=r2(y, P_stack),
                stacked_minus_chosen=[r2(y, P_stack) - r2(y, P_choice), float(lo), float(hi)], weights={int(l): float(Wm[i]) for i, l in enumerate(LAY)})
     out[nm] = rec
+    np.savez(f"{GA}/ad13_oof_{nm.replace(' ', '_').replace(',', '')}.npz", accession=accs, y=y, pred=P_stack)   # out-of-fold stacked predictions
     top = sorted(rec["weights"].items(), key=lambda z: -z[1])[:3]
     print(f"{nm:<14}" + "".join(f"{100*rec['layers'][l]:>6.1f}%" for l in LAY) + f"{100*rec['chosen']:>9.1f}%{100*rec['stacked']:>8.1f}%"
           f"   {100*rec['stacked_minus_chosen'][0]:+.1f} [{100*lo:+.1f},{100*hi:+.1f}]   " + ", ".join(f"L{l} {w:.2f}" for l, w in top), flush=True)

@@ -91,8 +91,22 @@ reproducible in every quarter: reliability is 0.76 in the least enriched quarter
 enriched. No part of the pull-down behaves as bait-independent background at 35 °C.
 
 **Pull-down-only proteins.** 406 (DNAJA1) and 476 (DNAJB11) proteins are detected in the pull-down
-but not in the input. Most likely they sit below the input's detection limit and are concentrated
-by capture. They are over-represented among nuclear proteins (35 % against 20 %).
+but have no input level. The baits are not among them: both are quantified in the input, which was
+sampled after the bait was added. Two kinds of protein make up this set.
+
+- **Weak signals.** Most are weakly detected in the pull-down (median at the 31st-37th percentile of
+  pull-down level). They probably sit near the input's detection limit. They are over-represented
+  among nuclear proteins (35 % against 20 %).
+- **Naming mismatches.** The highest-ranked ones are not missing from the input. The two searches
+  assigned their shared peptides to different members of the same family:
+
+  | Named in the pull-down | Named in the input |
+  |---|---|
+  | tubulin TUBA1B | TUBA1A |
+  | ubiquitin fusion UBA52 | RPS27A (also a ubiquitin fusion) |
+  | actin ACTG2 | ACTB / ACTG1 / ACTA2 |
+
+  For these, the pairing of the two files fails, not the detection.
 
 # 2. At 43 °C the pull-down becomes partly lysate-like
 

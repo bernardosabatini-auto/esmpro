@@ -187,7 +187,7 @@
 <p>114 proteins leave the HSPB1 pull-down entirely at 150 mM (5 enter). A model trained without them or their relatives predicts them to fall (AUC 0.66 against proteins of matched abundance).</p>
 <h1 id="heat">4. Heat</h1>
 <p>Raising the temperature of the lysate from 35 to 43 °C changes co-chaperone binding about 2.2-fold for a typical protein, and overall the pull-downs contain about 1.9 times more protein (run medians +0.9 log2), which with equal inputs means more total binding at 43 °C. The normalised responses below describe how each protein’s share of the binding changes.</p>
-<p><strong>At 43 °C about half of each pull-down is lysate-like.</strong> Measured against the input lysate, the pull-downs are selective: the most abundant lysate proteins (glycolytic enzymes, proteasome, translation factors) are strongly under-represented, and pull-down level rises with lysate level with a slope of only 0.35. At 43 °C the slope rises to 0.6. Each protein’s 43 °C level is close to 0.42 x its 35 °C level + 0.46 x its lysate level. At 37 °C the corresponding fit is 0.93 and 0.07. Both co-chaperones give the same mixture. Staurosporine, at any temperature, leaves the composition unchanged (coefficient 1.0 and 0.0). This lysate-like part, predicted for each protein from its lysate abundance and its 35 °C enrichment, accounts for 45 % of the variance of the 43 °C response; the rest is called the <em>selective</em> response below.</p>
+<p><strong>At 43 °C about half of each pull-down is lysate-like.</strong> Measured against the input lysate, the pull-downs are selective: the most abundant lysate proteins (glycolytic enzymes, proteasome, translation factors) are strongly under-represented, and pull-down level rises with lysate level with a slope of only 0.35. Why it is so low is open: known client properties and sample load do not explain it (additional text 9). At 43 °C the slope rises to 0.6. Each protein’s 43 °C level is close to 0.42 x its 35 °C level + 0.46 x its lysate level. At 37 °C the corresponding fit is 0.93 and 0.07. Both co-chaperones give the same mixture. Staurosporine, at any temperature, leaves the composition unchanged (coefficient 1.0 and 0.0). This lysate-like part, predicted for each protein from its lysate abundance and its 35 °C enrichment, accounts for 45 % of the variance of the 43 °C response; the rest is called the <em>selective</em> response below.</p>
 <table>
 <thead>
 <tr class="header">
@@ -230,6 +230,19 @@
 <h2 id="less-stable-proteins-gain-more">4.1 Less stable proteins gain more</h2>
 <p>If heat recruits proteins as they begin to unfold, the less stable a protein, the more it should gain. Melting temperatures for 9,792 human proteins come from the Meltome atlas (Jarzab et al. 2020; thermal proteome profiling, consensus over ten cell lines, reliability 0.96); 87 % of the heat-response proteins have one. Proteins were sorted by melting temperature into ten equal groups:</p>
 <table>
+<colgroup>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+<col style="width: 9%"></col>
+</colgroup>
 <thead>
 <tr class="header">
 <th style="text-align: left;">Melting temperature (°C)</th>
@@ -392,7 +405,16 @@
 </tbody>
 </table>
 <p><strong>Depletion follows drug binding.</strong> Staurosporine dissociation constants for 374 kinases (ChEMBL; three kinome-wide studies agreeing at Spearman 0.93-0.98) show that tighter binders lose more, within kinase groups as well as between them (partial correlation +0.24 [+0.13, +0.34] at 43 °C). Leaving aside the AGC group (below), the mean change at 37 °C falls off steadily with affinity:</p>
-<table>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 14%"></col>
+<col style="width: 14%"></col>
+<col style="width: 14%"></col>
+<col style="width: 14%"></col>
+<col style="width: 14%"></col>
+<col style="width: 14%"></col>
+<col style="width: 14%"></col>
+</colgroup>
 <thead>
 <tr class="header">
 <th style="text-align: left;">Dissociation constant</th>
@@ -485,7 +507,7 @@
 <li>Folds group proteins at 30 % sequence identity (MMseqs2). Out-of-family intervals resample families.</li>
 <li>The salt workbook had been damaged by a find-and-replace (missing values had become zeros, and eight accessions were mangled); targets were rebuilt from the replicates and checked against the file’s own statistics.</li>
 <li>Weighting proteins by their measurement noise was tested and does not help: noise is too small a part of the variance for the salt and heat responses.</li>
-<li>Detailed analyses are in <code>reports/additional/additional_text_1</code> to <code>_8</code>: thermal stability (1), kinases and staurosporine (2), cross-experiment structure (3), normalisation (4), proteins that appear or vanish (5), combining layers (6), complexes (7), the input lysate (8). Where texts 1 and 7 describe the heat response as measured, text 8 gives the selective version.</li>
+<li>Detailed analyses are in <code>reports/additional/additional_text_1</code> to <code>_9</code>: thermal stability (1), kinases and staurosporine (2), cross-experiment structure (3), normalisation (4), proteins that appear or vanish (5), combining layers (6), complexes (7), the input lysate (8), why abundant proteins are under-represented, with proposed controls (9). Where texts 1 and 7 describe the heat response as measured, text 8 gives the selective version.</li>
 </ul>
 </body>
 </html>
