@@ -1,0 +1,19 @@
+# GA_22 supernatant after the HSPB1 IP, 1 MS injection per BR.
+name: GA22S
+title: GA_22 post-IP supernatant (unbound fraction)
+format: diann
+source: pd_data/GA_22_Proteome_report_out.tsv
+pattern: 'GA_22_PROTEOME_KCl_(?P<KCl>[\d.]+)_STAU_(?P<stau>[\d.]+)_BR(?P<BR>\d+)_TR\d+'
+condition: [KCl, stau]
+numeric: []
+contrasts:
+  KCl60_stau0: ["60|0", "0|0"]
+  KCl120_stau0: ["120|0", "0|0"]
+  stau0.1_KCl0: ["0|0.1", "0|0"]
+  stau1_KCl0: ["0|1", "0|0"]
+  stau10_KCl0: ["0|10", "0|0"]
+  stau10_KCl60: ["60|10", "60|0"]
+  stau10_KCl120: ["120|10", "120|0"]
+# BR5 at KCl 60 fails the leave-one-out sample check in all four arms (r -0.20 to -0.09; median sample 0.58):
+# a handling failure of that BR x salt block, so the block is dropped.
+exclude: ["60_0_5", "60_0.1_5", "60_1_5", "60_10_5"]

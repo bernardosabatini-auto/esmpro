@@ -1,0 +1,17 @@
+# GA_24: HSPB1 pull-down at 37 C from lysate, cofactor (none, NADP 0.6 / 15, NAD 11 / 300; units as in the sample names) x KCl 0/60/120 mM, 5 BR x 3 MS injections.
+name: GA24
+title: HSPB1 pull-down, NAD(P) x salt (GA_24)
+format: diann
+source: pd_data/GA24_report_out.tsv
+pattern: 'GA_24_HSPB1_37_(?P<cof>CTRL|NADP|NAD)_(?P<conc>[\d.]+)_KCl_(?P<KCl>[\d.]+)_BR(?P<BR>\d+)_TR\d+'
+condition: [cof, conc, KCl]
+numeric: []
+contrasts:
+  KCl60_ctrl: ["CTRL|0|60", "CTRL|0|0"]
+  KCl120_ctrl: ["CTRL|0|120", "CTRL|0|0"]
+  NADP0.6_KCl0: ["NADP|0.6|0", "CTRL|0|0"]
+  NADP15_KCl0: ["NADP|15|0", "CTRL|0|0"]
+  NAD11_KCl0: ["NAD|11|0", "CTRL|0|0"]
+  NAD300_KCl0: ["NAD|300|0", "CTRL|0|0"]
+  NADP15_KCl120: ["NADP|15|120", "CTRL|0|120"]
+  NAD300_KCl120: ["NAD|300|120", "CTRL|0|120"]

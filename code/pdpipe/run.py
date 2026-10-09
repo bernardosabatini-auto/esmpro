@@ -28,7 +28,7 @@ def br_share(ds):
 
 
 def first_pass(name, n_perm=20):
-    cfg = io.load_config(name); ds = io.load_proteoda(cfg)
+    cfg = io.load_config(name); ds = io.load(cfg)
     out = f"{io.ROOT}/data/fs_data/{ds.name}"; fig = f"{io.ROOT}/reports/figures/{ds.name}"
     os.makedirs(fig, exist_ok=True); io.save(ds, out)
     R = dict(n_proteins=int(len(ds.X)), n_samples=int(ds.X.shape[1]), n_complete=int(ds.X.notna().all(1).sum()),
@@ -58,9 +58,10 @@ def first_pass(name, n_perm=20):
     for a in ax.flat[n:]: a.axis("off")
     f.tight_layout(); f.savefig(f"{fig}/volcano.png", dpi=160); plt.close(f)
 
-    # cross-check against the workbook's own estimates
+    # cross-check against the workbook's own estimates (proteoDA workbooks only)
     f, ax = plt.subplots(nr, nc, figsize=(3.2 * nc, 2.9 * nr), squeeze=False); R["published_check"] = {}
     for i, (cn, r) in enumerate(res.items()):
+        if ds.published is None or "published_logfc" not in cfg: ax.flat[i].axis("off"); continue
         col = cfg["published_logfc"].format(name=cn)
         if col not in ds.published: ax.flat[i].axis("off"); continue
         pub = pd.to_numeric(ds.published[col], errors="coerce")
@@ -69,7 +70,8 @@ def first_pass(name, n_perm=20):
         R["published_check"][cn] = dict(r=o["r"], slope=o["slope"], hits_workbook=int((pq < .05).sum()), hits_pdpipe=int((r["q"] < .05).sum()),
                                         hits_both=int(((pq < .05) & (r["q"] < .05)).sum()))
     for a in ax.flat[n:]: a.axis("off")
-    f.tight_layout(); f.savefig(f"{fig}/published_check.png", dpi=150); plt.close(f)
+    if R["published_check"]: f.tight_layout(); f.savefig(f"{fig}/published_check.png", dpi=150)
+    plt.close(f)
 
     rel = {}
     for cn, (a, b) in cfg["contrasts"].items():

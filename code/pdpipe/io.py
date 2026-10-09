@@ -77,6 +77,69 @@ def load_proteoda(cfg):
     return Dataset(cfg["name"], X, S, P, pub, dict(cfg))
 
 
+def load_diann(cfg):
+    """DIA-NN protein report (pd_data/*_report_out.tsv): one column per MS injection, raw log2, NaN = missing.
+
+    cfg keys: name, source, pattern (regex with named groups for the design fields and BR; the TR token is
+    matched but not captured), condition, numeric, exclude (sample ids to drop, "<cond fields>_<BR>").
+    Technical injections of one biological replicate are averaged in log2 (over those detected). Each sample is
+    then median-normalised as in ga01: the median of its log-ratios to each protein's across-sample mean, over
+    proteins detected in >= 90 % of samples. The offsets are kept in meta["offsets"] so a global shift is not lost.
+    Protein groups are keyed by their first accession; a duplicate key keeps the better-detected group.
+    samples["inj_pos"] is each sample's mean position in the MS acquisition order (0-1), for drift checks."""
+    import re
+    path = os.path.join(ROOT, cfg["source"])
+    t = pd.read_csv(path, sep="\t", low_memory=False)
+    pat = re.compile(cfg["pattern"]); rows = []
+    for c in t.columns:
+        m = pat.search(c)
+        if m: rows.append({**m.groupdict(), "injection": c})
+    I = pd.DataFrame(rows)
+    keys = cfg["condition"] + ["BR"]
+    I["column"] = I[keys].agg("_".join, axis=1)
+    V = t[I["injection"]].apply(pd.to_numeric, errors="coerce")
+    acc = t["Protein.Group"].astype(str).str.split(";").str[0]
+    order = V.notna().sum(1).sort_values(ascending=False).index
+    keep = ~acc.loc[order].duplicated()
+    keep = keep.reindex(t.index).values
+    t, V, acc = t[keep].reset_index(drop=True), V[keep].reset_index(drop=True), acc[keep].reset_index(drop=True)
+    X = V.T.groupby(I["column"].values).mean().T                      # log2 mean over technical injections
+    X.index = acc.values
+    S = I.drop_duplicates("column").drop(columns=["injection"]).reset_index(drop=True)
+    S["n_injections"] = S["column"].map(I.groupby("column").size())
+    inj = I["injection"].str.extract(r"_(\d+)$")[0].astype(float)      # MS acquisition index, last token of the name
+    I["inj_pos"] = inj.rank(pct=True).values                            # position in the run, 0-1
+    S["inj_pos"] = S["column"].map(I.groupby("column")["inj_pos"].mean())
+    S = S[~S["column"].isin(cfg.get("exclude", []))]
+    S["cond"] = S[cfg["condition"]].agg("|".join, axis=1)
+    for f in cfg.get("numeric", []): S[f] = S[f].astype(float)
+    S["BR"] = S["BR"].astype(int)
+    S = S.sort_values(cfg["condition"] + ["BR"]).reset_index(drop=True)
+    X = X[S["column"]]
+    det = X.notna().mean(1) >= .9
+    off = (X[det] - X[det].mean(1).values[:, None]).median(0)
+    X = X - off
+    P = pd.DataFrame({"uniprot_id": X.index, "gene": t["Genes"].astype(str).str.split(";").str[0].values,
+                      "name": t["Protein.Names"].astype(str).values, "protein_group": t["Protein.Group"].astype(str).values},
+                     index=X.index)
+    P = P.join(uniprot_annotation(), how="left")
+    meta = dict(cfg); meta["offsets"] = off.round(4).to_dict(); meta["n_norm_proteins"] = int(det.sum())
+    return Dataset(cfg["name"], X, S, P, None, meta)
+
+
+def uniprot_annotation():
+    """Reviewed human UniProt: length, mass, GO MF/CC, keywords, cofactor, subcellular location, sequence
+    (data/annot/uniprot_human_full.tsv.gz), indexed by accession."""
+    p = f"{ROOT}/data/annot/uniprot_human_full.tsv.gz"
+    if not os.path.exists(p): return pd.DataFrame()
+    u = pd.read_csv(p, sep="\t", index_col=0)
+    return u.rename(columns={"Length": "length", "Sequence": "sequence", "Gene Ontology (molecular function)": "Gene Ontology (molecular function)"}).drop(columns=["Gene Names (primary)"], errors="ignore")
+
+
+def load(cfg):
+    return load_diann(cfg) if cfg.get("format") == "diann" else load_proteoda(cfg)
+
+
 def load_config(name):
     import yaml
     return yaml.safe_load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "configs", f"{name}.yaml")))

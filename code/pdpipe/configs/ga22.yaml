@@ -1,0 +1,16 @@
+# GA_22: HA-HSPB1 pull-down at 37 C from lysate, KCl 0/60/120 mM x staurosporine 0/0.1/1/10 uM, 5 BR x 3 MS injections.
+name: GA22
+title: HSPB1 pull-down, salt x staurosporine (GA_22)
+format: diann
+source: pd_data/GA22_report_out.tsv
+pattern: 'GA_22_HSPB1_37_HA_KCl_(?P<KCl>[\d.]+)_STAU_(?P<stau>[\d.]+)_BR(?P<BR>\d+)_TR\d+'
+condition: [KCl, stau]
+numeric: []
+contrasts:
+  KCl60_stau0: ["60|0", "0|0"]
+  KCl120_stau0: ["120|0", "0|0"]
+  stau0.1_KCl0: ["0|0.1", "0|0"]
+  stau1_KCl0: ["0|1", "0|0"]
+  stau10_KCl0: ["0|10", "0|0"]
+  stau10_KCl60: ["60|10", "60|0"]
+  stau10_KCl120: ["120|10", "120|0"]

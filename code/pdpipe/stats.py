@@ -22,10 +22,15 @@ import numpy as np, pandas as pd
 from scipy import special, stats
 
 
-def design(samples, block=False):
+def design(samples, block=False, covars=None):
+    """Cell-means design; optional sum-to-zero BR block; optional sample covariates (DataFrame aligned with
+    samples, e.g. injection-position terms), centred so the condition columns stay means at the average covariate."""
     conds = list(dict.fromkeys(samples["cond"]))
     D = (samples["cond"].values[:, None] == np.array(conds)[None]).astype(float)
     names = list(conds)
+    if covars is not None:
+        for c in covars:
+            v = np.asarray(covars[c], float); D = np.c_[D, v - v.mean()]; names.append(c)
     if block:
         brs = sorted(samples["BR"].unique())
         for b in brs[1:]:   # sum-to-zero coding: condition columns stay the mean over blocks
@@ -34,9 +39,15 @@ def design(samples, block=False):
     return D, names
 
 
-def lmfit(X, D):
-    """X: proteins x samples DataFrame (NaN allowed). Fits each NA pattern once."""
+def lmfit(X, D, covar=None, min_df=8, min_keep=.5):
+    """X: proteins x samples DataFrame (NaN allowed). Fits each NA pattern once.
+    covar: indices of covariate columns of D (e.g. drift terms). For an NA pattern they are kept only if the
+    observed samples support them: at least min_df residual df without them, and each covariate keeps at least
+    min_keep of its variance after projection on the other observed columns. Otherwise that pattern is fitted
+    without the covariates. With many samples missing a covariate can otherwise be nearly aliased with a sparse
+    cell and blow up that cell's estimate (seen on the GA_24 supernatant)."""
     Y = X.values; n, m = Y.shape; p = D.shape[1]
+    covar = set(covar or [])
     beta = np.full((n, p), np.nan); V = np.full((n, p, p), np.nan); s2 = np.full(n, np.nan); df = np.zeros(n)
     obs = np.isfinite(Y)
     pats, inv = np.unique(obs, axis=0, return_inverse=True)
@@ -44,6 +55,13 @@ def lmfit(X, D):
         rows = np.nonzero(inv.ravel() == k)[0]
         Dm = D[pat]
         est = np.abs(Dm).sum(0) > 0                       # columns estimable from the observed samples
+        if covar and pat.sum() > 0:
+            cv = np.array([j in covar for j in range(p)]); base = est & ~cv
+            Do = Dm[:, base]; ok_cov = pat.sum() - np.linalg.matrix_rank(Do) >= min_df
+            if ok_cov:
+                Dc = Dm[:, est & cv]; Rc = Dc - Do @ np.linalg.pinv(Do) @ Dc
+                ok_cov = bool(np.all((Rc ** 2).sum(0) >= min_keep * ((Dc - Dc.mean(0)) ** 2).sum(0)))
+            if not ok_cov: est = base
         Dm = Dm[:, est]
         if Dm.shape[1] == 0: continue                     # protein never detected
         r = np.linalg.matrix_rank(Dm)
@@ -291,6 +309,77 @@ def covariate_adjuster(h):
         def apply(X2, S2):
             hh = h[S2["column"]].values
             return X2[S2["column"]] - np.outer(b.values, hh - hf.mean())
+        return apply
+    return fit
+
+
+def half_effects(X, samples, weights, A, adjust=None):
+    """Effect estimates from the BRs in A and from the rest, each corrected (if adjust) with parameters learned
+    on the other half only, as in split_half. Returns (effect_A, effect_B), either None if a half lacks a cell."""
+    S_ = samples[samples["cond"].isin(list(weights))].reset_index(drop=True); inA = S_["BR"].isin(A)
+    if adjust is None:
+        return _effect(X, S_, weights, inA), _effect(X, S_, weights, ~inA)
+    SA, SB = S_[inA].reset_index(drop=True), S_[~inA].reset_index(drop=True)
+    XA = adjust(X, SB)(X, SA); XB = adjust(X, SA)(X, SB)
+    return _effect(XA, SA, weights, np.ones(len(SA), bool)), _effect(XB, SB, weights, np.ones(len(SB), bool))
+
+
+def cross_dataset(dx, wx, dy, wy, adj_x=None, adj_y=None):
+    """Agreement of effect x (dataset dx) with effect y (dataset dy) when the two are estimated from DISJOINT
+    biological replicates, e.g. a pull-down and its own supernatant, whose matched reactions share handling noise.
+    For every split of the shared BRs: x from one half, y from the other, both ways. Also returns each effect's
+    half-vs-half r, the disattenuated r = r_cross / sqrt(r_half_x r_half_y) and the slope of y on x corrected for
+    the noise in x (slope / r_half_x). Example halves are returned for plotting."""
+    brs = sorted(set(dx.samples["BR"]) & set(dy.samples["BR"]))
+    rc, rx, ry, sl, ex = [], [], [], [], None
+    for A in _splits(brs):
+        B = set(brs) - set(A)
+        xa, xb = half_effects(dx.X, dx.samples, wx, A, adj_x); ya, yb = half_effects(dy.X, dy.samples, wy, A, adj_y)
+        if any(v is None for v in (xa, xb, ya, yb)): continue
+        for x, y in ((xa, yb), (xb, ya)):
+            j = x.index.intersection(y.index); ok = np.isfinite(x[j]) & np.isfinite(y[j])
+            rc.append(np.corrcoef(x[j][ok], y[j][ok])[0, 1]); sl.append(ols(x[j][ok].values, y[j][ok].values)["slope"])
+        ok = np.isfinite(xa) & np.isfinite(xb); rx.append(np.corrcoef(xa[ok], xb[ok])[0, 1])
+        ok = np.isfinite(ya) & np.isfinite(yb); ry.append(np.corrcoef(ya[ok], yb[ok])[0, 1])
+        if ex is None: ex = (xa, yb)
+    r, hx, hy = float(np.mean(rc)), float(np.mean(rx)), float(np.mean(ry))
+    return dict(r=r, r_half_x=hx, r_half_y=hy, r_disattenuated=r / np.sqrt(hx * hy) if hx > 0 and hy > 0 else np.nan,
+                slope=float(np.mean(sl)), slope_corrected=float(np.mean(sl)) / hx if hx > 0 else np.nan, example=ex, n_splits=len(rc))
+
+
+def sample_fit(X, samples):
+    """Leave-one-out quality of each sample: correlation, over complete proteins, of the sample's deviation from
+    the protein mean with the mean deviation of the OTHER samples of its condition. A sample that does not
+    carry its condition's profile scores near 0."""
+    Xc = X.dropna(); D = Xc - Xc.mean(1).values[:, None]; out = []
+    for _, r in samples.iterrows():
+        others = samples.loc[(samples["cond"] == r["cond"]) & (samples["column"] != r["column"]), "column"]
+        out.append(np.corrcoef(D[r["column"]], D[others].mean(1))[0, 1] if len(others) else np.nan)
+    return pd.Series(out, index=samples["column"].values)
+
+
+def drift_basis(pos, degree=2):
+    """Polynomial basis of the MS acquisition position (0-1): columns pos, pos^2, ... (centred later)."""
+    p = np.asarray(pos, float)
+    return pd.DataFrame({f"inj{k}": (p - .5) ** k for k in range(1, degree + 1)})
+
+
+def drift_adjuster(H):
+    """Cross-fit helper: per-protein regression on several sample covariates H (DataFrame indexed by column,
+    e.g. drift_basis of the injection position), learned within condition on S_fit, removed from the applied
+    samples. Proteins with too few values in S_fit are left unadjusted."""
+    def fit(X, S_fit):
+        Xf = X[S_fit["column"]]; Hf = H.loc[S_fit["column"]].values
+        Hc = Hf - pd.DataFrame(Hf).groupby(S_fit["cond"].values).transform("mean").values
+        W = (Xf - cond_means(Xf, S_fit)[S_fit["cond"]].values).values
+        M = np.isfinite(W).astype(float); W0 = np.nan_to_num(W)
+        AtA = np.einsum("ps,sk,sl->pkl", M, Hc, Hc); Atw = W0 @ Hc          # per-protein masked normal equations
+        ok = M.sum(1) >= max(10, H.shape[1] + 8)                            # enough values to estimate drift
+        B = np.zeros((len(X), H.shape[1]))
+        B[ok] = np.linalg.solve(AtA[ok] + 1e-9 * np.eye(H.shape[1]), Atw[ok][..., None])[..., 0]
+        mu = Hf.mean(0)
+        def apply(X2, S2):
+            return X2[S2["column"]] - B @ (H.loc[S2["column"]].values - mu).T
         return apply
     return fit
 
