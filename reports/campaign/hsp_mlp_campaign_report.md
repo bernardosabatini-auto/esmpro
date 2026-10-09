@@ -41,13 +41,14 @@ Every number is out-of-fold. Folds are grouped by 30% sequence identity, so no h
 protein is ever trained on. Each number is read against its own split-half ceiling.
 
 | Question | Answer |
-|------------|------------------------------------------------|
+|-------------|-----------------------------------------------|
 | How much does sequence predict? | Mean R² / ceiling 0.27-0.28 over all 33 targets. Abundance 0.51; abundance-free binding 0.33; baseline pull-down 0.26; temperature 0.24; salt 0.23; Mg 0.17 |
 | Is it better than a linear read-out? | Yes, slightly: +0.028 [0.023, 0.034] over ridge on the best layer; most on salt (+0.039) |
 | Does reading residue by residue help? | No. A learned attention-pooling front end over 7.4 M residue states equals the mean-pooled model: +0.000 [−0.003, +0.004] |
 | Does one shared model help? | Marginally. Multi-task beats 33 single-task models on 22 of 32 targets, but by 0.003 R² on average |
 | Do conditions share one representation? | Yes. A trunk trained without a run predicts that run nearly as well as one trained with it. The exceptions are the condition types no other run contains: heat (0.26 → 0.19) and Mg (0.15 → 0.10) |
 | What predicts the pull-down with no perturbation? | Mostly how much protein there is. Measured abundance plus Tm beats sequence for every baseline. Sequence plus those measurements is best: R² 0.30-0.54 |
+| Fold changes from sequence alone, no input information? | R2 0.12-0.27 per perturbation (rho 0.35-0.52), calibrated; top-10 % responders recovered 2.5-4x above chance; same accuracy as the full model (-0.002 [-0.007, +0.002]) |
 | What does sequence add beyond abundance? | Salt and Mg responses: +0.056 and +0.045 R² / ceiling over measured abundance and Tm alone |
 | Regressing out the baseline | Salt and Mg responses are almost untouched (83-99% of their variance remains). Heat is not: the baseline accounts for about half of the 43 °C response and half of what sequence predicts about it |
 | What the SAE features say | Pull-down and abundance: structured enzymes up, phosphorylated disordered Ser/Thr-rich regions down. Abundance-free binding, salt and Mg: membrane-helix features. Heat: structured α/β enzyme cores |
@@ -181,6 +182,44 @@ The limit is what ESMC-6B's representation carries about these measurements, not
 few individual baselines. The combined model's regularisation does not fully adapt when one input block is far
 more informative than the other. A residual design (sequence predicting what the covariates leave) would
 avoid this.
+
+# 3b. Fold changes alone: each perturbation from sequence, with no input information
+
+This model knows nothing about the input / lysate distribution. One MLP is trained only on the 11 pull-down fold
+changes, with no abundance, supernatant, partition or baseline targets and no measured covariates: ESMC-6B layers
+50 + 80 and sequence covariates in, 11 fold changes out (`cm11`, run `s5`).
+
+![Predicted against measured log2 fold change for every perturbation (sequence only, out-of-fold), with the least-squares line; last panel: the same targets from four models.](../figures/campaign/fold_changes.png){width=100%}
+
+| Perturbation | Ceiling | R2 | R2/ceil. | rho | Top 10 % | Bottom 10 % | Sign |
+|---------------------|------|----|-------|---|-------|---------|---|
+| HSPB1, salt 75 mM (GA_20) | 0.98 | 0.197 | 0.20 | 0.43 | 37 % | 30 % | 79 % |
+| HSPB1, salt 150 mM (GA_20) | 0.99 | 0.220 | 0.22 | 0.44 | 38 % | 29 % | 80 % |
+| HSPB1, KCl 60 (GA_22) | 0.90 | 0.136 | 0.15 | 0.36 | 29 % | 27 % | 76 % |
+| HSPB1, KCl 120 (GA_22) | 0.96 | 0.193 | 0.20 | 0.40 | 38 % | 27 % | 78 % |
+| HSPB1, KCl 60 (GA_24) | 0.91 | 0.152 | 0.17 | 0.38 | 33 % | 27 % | 76 % |
+| HSPB1, KCl 120 (GA_24) | 0.97 | 0.201 | 0.21 | 0.41 | 38 % | 25 % | 79 % |
+| DNAJA1, 37 vs 35 C | 0.64 | 0.136 | 0.21 | 0.36 | 25 % | 28 % | 79 % |
+| DNAJA1, 43 vs 35 C | 0.97 | 0.274 | 0.28 | 0.52 | 37 % | 33 % | 89 % |
+| DNAJB11, 37 vs 35 C | 0.74 | 0.117 | 0.16 | 0.35 | 24 % | 25 % | 77 % |
+| DNAJB11, 43 vs 35 C | 0.98 | 0.268 | 0.27 | 0.51 | 36 % | 27 % | 89 % |
+| HSPB1, Mg2+ 2.5 vs 0.25 mM | 0.98 | 0.176 | 0.18 | 0.40 | 20 % | 37 % | 77 % |
+
+"Top / Bottom 10 %": of the proteins measured in the top (or bottom) 10 %, the share the prediction also places in its
+top (bottom) 10 %; chance is 10 %. "Sign": among the 10 % of proteins with the largest measured change,
+the share whose predicted change is on the same side of the median.
+
+* **Sequence alone predicts every fold change, modestly**: R2 0.12-0.27 (0.15-0.28 of ceiling), rank correlation
+  0.35-0.52. The predictions are calibrated (out-of-fold slopes 0.92-1.06; Mg 1.20), so the size of a predicted
+  change means what it says.
+* **As a screen it is 2.5-4 times better than chance**: a quarter to over a third of the strongest responders in
+  each direction land in the predicted top or bottom 10 %, and the direction is right for 76-89 % of the strongest.
+  Heat at 43 C is the most predictable perturbation; KCl 60 mM and heat 37 C, the smallest effects, the least.
+  Mg is asymmetric: proteins that fall with Mg are found far better (37 %) than those that rise (20 %).
+* **Leaving out the input information costs nothing**: the fold-change-only model equals the full multi-task model
+  (difference in mean R2 / ceiling -0.002 [-0.007, +0.002]), matches one MLP per perturbation (+0.004 [-0.000,
+  +0.008]) and beats ridge (+0.030 [0.022, 0.037]). The abundance and baseline targets did not help the network
+  learn the fold changes, consistent with section 5.3: salt and Mg responses are largely independent of the baseline.
 
 # 4. What predicts the pull-down with no perturbation
 
