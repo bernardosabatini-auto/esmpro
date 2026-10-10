@@ -41,7 +41,7 @@ Every number is out-of-fold. Folds are grouped by 30% sequence identity, so no h
 protein is ever trained on. Each number is read against its own split-half ceiling.
 
 | Question | Answer |
-|-------------|-----------------------------------------------|
+|-----------|-------------------------------------------------|
 | How much does sequence predict? | Mean R² / ceiling 0.27-0.28 over all 33 targets. Abundance 0.51; abundance-free binding 0.33; baseline pull-down 0.26; temperature 0.24; salt 0.23; Mg 0.17 |
 | Is it better than a linear read-out? | Yes, slightly: +0.028 [0.023, 0.034] over ridge on the best layer; most on salt (+0.039) |
 | Does reading residue by residue help? | No. A learned attention-pooling front end over 7.4 M residue states equals the mean-pooled model: +0.000 [−0.003, +0.004] |
@@ -51,13 +51,16 @@ protein is ever trained on. Each number is read against its own split-half ceili
 | Fold changes from sequence alone, no input information? | R2 0.12-0.27 per perturbation (rho 0.35-0.52), calibrated; top-10 % responders recovered 2.5-4x above chance; same accuracy as the full model (-0.002 [-0.007, +0.002]) |
 | What does sequence add beyond abundance? | Salt and Mg responses: +0.056 and +0.045 R² / ceiling over measured abundance and Tm alone |
 | Regressing out the baseline | Salt and Mg responses are almost untouched (83-99% of their variance remains). Heat is not: the baseline accounts for about half of the 43 °C response and half of what sequence predicts about it |
+| Is the plateau a ceiling on predictability? | No, a ceiling on *per-protein* information. The residual is strongly shared among members of the same complex (r 0.22-0.58, null ~0.00). One complex-mate term lifts mean R² / ceiling 0.309 → 0.410, far more than any architecture change |
 | What the SAE features say | Pull-down and abundance: structured enzymes up, phosphorylated disordered Ser/Thr-rich regions down. Abundance-free binding, salt and Mg: membrane-helix features. Heat: structured α/β enzyme cores |
 
-**The bottom line.** Sequence predicts about a quarter of what these measurements reliably contain. The
-limit is the information in the representation: an MLP over 94 architectures, attention pooling and
-multi-task sharing all hit the same plateau. The no-perturbation pull-down is mostly abundance and
-stability. The salt and Mg responses are where sequence carries information that the measured lysate
-properties do not.
+**The bottom line.** Sequence predicts about a quarter of what these measurements reliably contain, and
+an MLP over 94 architectures, attention pooling and multi-task sharing all hit the same plateau. That
+plateau is not a limit on predictability: a third of what the model misses is shared among the subunits
+of a complex, which no sequence model can reach because the folds separate homologs and complex-mates
+are not homologs. Adding one complex-context term takes mean R² / ceiling from 0.31 to 0.41. The
+no-perturbation pull-down is mostly abundance and stability. The salt and Mg responses are where
+sequence carries information that the measured lysate properties do not.
 
 # 1. Data, targets and features
 
@@ -220,6 +223,59 @@ the share whose predicted change is on the same side of the median.
   (difference in mean R2 / ceiling -0.002 [-0.007, +0.002]), matches one MLP per perturbation (+0.004 [-0.000,
   +0.008]) and beats ridge (+0.030 [0.022, 0.037]). The abundance and baseline targets did not help the network
   learn the fold changes, consistent with section 5.3: salt and Mg responses are largely independent of the baseline.
+
+# 3c. What the model misses is largely a property of the complex, not the protein
+
+Section 3 reports a plateau: 94 architectures, attention pooling over every residue, single- against multi-task, all
+land within 0.274-0.276 of ceiling. A plateau can mean the representation is exhausted, or that the remaining
+variance is not a function of the protein's sequence at all. The second possibility is testable (`cm12`).
+
+A pull-down measures a protein that may be held in a multi-subunit assembly, so its level, and its response to a
+perturbation, can be a property of the assembly. Sequence cannot reach that. The design makes the test clean: the
+outer folds are grouped by MMseqs2 30 % identity and the subunits of a complex are unrelated in sequence, so
+complex-mates scatter across folds and no complex-level effect is learnable from sequence by construction. Any such
+effect therefore lands entirely in the residual.
+
+For every target, each protein's residual (measured minus out-of-fold prediction) is correlated with the mean
+residual of its other Complex Portal complex-mates, taken **within the same outer fold** so that both sides are
+held out of the same model. The null is not zero -- residuals share abundance and other structure -- so it is
+obtained by shuffling residuals within fold, 500 draws, which preserves every complex's size and each protein's
+fold while destroying the pairing.
+
+![Left: how much of the measured value, and of the residual, is shared with complex-mates, against the permutation null (black dashes). Right: two examples.](../figures/campaign/complex_residual.png){width=100%}
+
+| Target kind | n | Residual r | Null | R2/ceil. | + complex | Gain |
+|-------------|---|------------|------|----------|-----------|------|
+| baseline | 7 | 0.27 | 0.007 | 0.384 | 0.440 | +0.055 |
+| abundance | 3 | 0.30 | 0.004 | 0.557 | 0.584 | +0.027 |
+| enrichment | 4 | 0.27 | -0.001 | 0.250 | 0.299 | +0.049 |
+| salt | 14 | 0.40 | 0.003 | 0.281 | 0.445 | +0.164 |
+| temperature | 4 | 0.32 | 0.004 | 0.193 | 0.266 | +0.073 |
+| Mg | 1 | 0.28 | -0.001 | 0.113 | 0.213 | +0.100 |
+| **all 33** | **33** | **0.34** | **0.004** | **0.309** | **0.410** | **+0.101** |
+
+Scored on the 2,858 proteins that are in a Complex Portal complex with at least two measured members; "+ complex"
+adds one cross-fitted term, the complex-mate mean residual, with its coefficient fitted on the other outer folds.
+
+* **The residual is strongly complex-structured for every target**: r 0.22-0.58 against a null of ~0.00,
+  z = 6.3-16.9. The effect is largest where the sequence model is weakest.
+* **It is worth more than everything architecture gave**: mean R2 / ceiling rises 0.309 to 0.410. On the salt
+  responses it roughly doubles R2 (GA_22 KCl 60: 0.19 to 0.37; GA_24 KCl 60: 0.17 to 0.35), and on heat at 43 C it
+  rises from 0.22-0.24 to 0.31-0.35. For comparison, the entire MLP-over-ridge gain is +0.028.
+* **It is not abundance.** Projecting out `abundance_here`, PaxDb abundance and length barely moves it
+  (mean r 0.336 to 0.326).
+* **It is not shared peptides or paralogues.** The deployable variant, in which a protein's partner mean is taken
+  only from **training-fold** proteins -- measurements already in hand, never in the test protein's own 30 %
+  identity cluster -- performs identically (0.410 against 0.403). That version is also the honest one: it uses no
+  held-out measurement.
+
+Two limits. This is measured on the 25 % of proteins Complex Portal annotates with a measured partner; Complex
+Portal is incomplete, so the coverage is a floor, not a statement about the other 75 %. And the term consumes
+measured partner data, so it improves annotation of a *measured* proteome, not the sequence-only prediction of an
+unmeasured one -- for a complex with no measured member it offers nothing.
+
+The conclusion for the campaign is that the ~0.27 plateau is the ceiling on *per-protein* sequence information,
+not on predictability. Interaction context is a larger lever than any change to the network.
 
 # 4. What predicts the pull-down with no perturbation
 
