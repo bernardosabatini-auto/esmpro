@@ -53,6 +53,7 @@ protein is ever trained on. Each number is read against its own split-half ceili
 | Regressing out the baseline | Salt and Mg responses are almost untouched (83-99% of their variance remains). Heat is not: the baseline accounts for about half of the 43 °C response and half of what sequence predicts about it |
 | Is the plateau a ceiling on predictability? | No, a ceiling on *per-protein* information. The residual is strongly shared among members of the same complex (r 0.22-0.58, null ~0.00). One complex-mate term lifts mean R² / ceiling 0.309 → 0.410, far more than any architecture change |
 | Does AlphaFold structure help? | No. Surface vs buried ion pairs, charged surface patches, Debye-Huckel screening at the real ionic strengths and Mg^2+^ carboxylate clusters all add 0.000 over the embedding; the largest residual correlation of any structural feature is 0.092 |
+| Does the native partner's interface help? | No. Measured on 29,816 experimental assemblies covering 6,306 proteins: how much exposed hydrophobic and aggregation-prone surface a native partner buries adds +0.002 (salt and heat: −0.000). Three pre-stated directional predictions all fail |
 | What the SAE features say | Pull-down and abundance: structured enzymes up, phosphorylated disordered Ser/Thr-rich regions down. Abundance-free binding, salt and Mg: membrane-helix features. Heat: structured α/β enzyme cores |
 
 **The bottom line.** Sequence predicts about a quarter of what these measurements reliably contain, and
@@ -62,7 +63,10 @@ electrostatics, ion pairs and mask-pooled residue states all add nothing, becaus
 contains them. What the model misses is instead shared among the subunits of a complex, which no
 sequence model can reach because the folds separate homologs and complex-mates are not homologs. One
 complex-context term takes mean R² / ceiling from 0.31 to 0.41 for the quarter of proteins in a curated
-complex, though it fades to +0.007 across the broad STRING physical network. The
+complex, though it fades to +0.007 across the broad STRING physical network. That complex effect is not
+an interface effect: on 29,816 experimental structures, how much surface a native partner buries explains
+none of the residual and only +0.014 of the complex-shared part, so what a complex contributes is
+something other than steric competition for the chaperone's binding surface. The
 no-perturbation pull-down is mostly abundance and stability. The salt and Mg responses are where
 sequence carries information that the measured lysate properties do not.
 
@@ -368,6 +372,95 @@ unmodified** structure is missing from the embedding. It does not say 3D geometr
 sensitivity. The quantity the salt-bridge hypothesis is really about is the electrostatics of the chaperone-client
 *interface*, which needs a structure of the complex, not of the client alone.
 
+# 3e. The native partner, tested on experimental structures: it adds nothing either
+
+Section 3d left one escape route open: an AlphaFold model is predicted from the same sequence the network
+reads, so a null there is half-expected. A **complex** is not. It is a function of two sequences and their
+pairing, and the pairing is outside the model's input entirely -- which is exactly why the complex-mate term in
+3c worked. So the next question is whether the missing variance is an *interface* property.
+
+The hypothesis is competition. HSPB1 binds exposed hydrophobic and aggregation-prone surface on non-native
+clients. A protein that spends its life with that surface buried against a native partner should be a poor
+client, and a perturbation that loosens the native interface should make it a better one. That predicts a
+specific thing about the residual, and it is testable with structures that already exist -- no prediction, no
+GPU, 17 minutes of CPU.
+
+**What was measured** (`cm17`, `cm18`). Every PDB biological assembly containing at least one measured protein,
+capped at 15 structures per protein, is 29,816 assemblies. For each measured chain the solvent-accessible
+surface was computed twice -- alone, and in the presence of its partners -- and the difference resolved by
+residue class: total buried area, the fraction of *exposed hydrophobic* surface a partner occludes, the same for
+aggregation-prone regions, the composition and ion-pair density of the interface itself, and occlusion by
+nucleic acid. That is 15 features, each aggregated over structures as median, max and min, for **6,306 of the
+11,570 proteins** (1,816 of which have no interface in any structure -- the informative zero, deliberately kept).
+
+Entries holding at least *one* measured protein, not two: requiring a measured partner would condition on
+having a partner, which is close to the variable under test. Whether a partner chain was itself measured is
+irrelevant to how much surface it buries.
+
+**The guards.** Chains were aligned to their UniProt sequence (median identity 1.000, p05 0.987; 546 of 110,832
+chains fell below 0.80 and were dropped). RCSB names symmetry copies `A-2` where SIFTS calls them `A`; matching
+on the raw name would have silently discarded exactly the symmetry-generated partners that matter most, such as
+a homodimer absent from the asymmetric unit. The 10,462 chains with no partner chain in their assembly come out
+with a mean interface fraction of 0.00008, as they must.
+
+**The positive control.** Before asking whether the features explain anything, they have to agree with things
+already known. Complex Portal members bury 0.176 of their surface against 0.090 for non-members, and burial
+correlates with Meltome T~m~ at rho +0.170 (n = 5,407). The measurement is real.
+
+**The result is a null, and a flat one** (`cm19`, mean R² / ceiling over 33 targets):
+
+| Block added to the sequence model | R² / ceiling |
+|---------------------------------------------------|---------|
+| sequence alone | 0.278 |
+| + study-depth control (structure count, chain size, partner count) | 0.278 |
+| + composition control | 0.278 |
+| **+ native-partner interface** | **0.280** |
+| + named properties (abundance, T~m~, keywords) | 0.326 |
+| + complex-mate term (3c) | 0.319 |
+| + everything | 0.353 |
+
+By kind, the interface block adds +0.002 to baselines, +0.001 to enrichment, +0.007 to abundance, and
+**−0.000 to both salt and temperature** -- the two response types the hypothesis was built for. Every
+per-target bootstrap interval for the interface gain over the depth control includes zero.
+
+**The three directional predictions, fixed before looking, all fail.**
+
+| Prediction | Feature | Targets | rho with residual |
+|---------------------|------------------|-----|---------------|
+| D1 salt releases an ionically held interface | interface ion pairs per 1000 Å² | 14 salt | −0.009 to +0.025, every CI includes 0 |
+| D2 heat unmasks occluded aggregation-prone surface | fraction of APR surface occluded | 4 temperature | −0.022 to +0.008 |
+| D3 leftover hydrophobic surface is what HSPB1 binds | exposed hydrophobic area in the bound state | 7 baselines | −0.011 to +0.014 |
+
+D3 is worth a second look because it fails in an interesting way: on the *measured* scale it correlates
+**negatively** with the HSPB1 baselines (−0.050 to −0.081 for FS73, FS76, GA_20, GA_22, GA_24), the opposite of
+the prediction. Proteins with more hydrophobic surface left exposed in their native complexes are pulled down
+slightly *less*. That sign is consistent with those proteins being small, abundant and stable rather than with
+any chaperone-competition story, and it vanishes entirely in the residual (+0.009), so the sequence model
+already accounts for it.
+
+The largest residual correlation of **any** of the 46 interface features with **any** of the 33 targets is
+0.087 -- essentially the same ceiling as the 0.092 found for AlphaFold monomer features in 3d.
+
+**One near-miss, and why it is not a result.** Interface features predict the complex-mate mean residual of 3c
+at r = +0.080. But a control block built only from study depth and chain size reaches +0.066, so the interface
+contributes +0.014. In an earlier version of this analysis that gap looked like +0.04; the difference was an
+artefact of aggregating over however many structures a protein happens to have, since a maximum over 311
+structures is mechanically larger than one over 3. Subsampling to a fixed cap before aggregating removed most
+of the apparent effect. The honest reading is that the complex-level signal of 3c is **not** explained by how
+much surface the partner buries.
+
+**What this does and does not close.** It closes the version of the competition hypothesis that can be answered
+with static, unbound-versus-bound surface burial in native complexes, measured on more than half the proteome.
+It does not touch the chaperone side: none of these structures contains HSPB1, and the quantity the hypothesis
+is ultimately about is the interface between the chaperone and a *non-native* client -- a state that is
+essentially absent from the PDB, because it is transient, low-affinity and disordered. Testing that needs a
+model of the bound complex, which is the next tier and a genuinely different experiment.
+
+![Native-partner occlusion against the sequence model's residual. Left: R² / ceiling per target; the interface
+bars sit on the sequence-only bars, while named properties and the complex-mate term rise above them. Right:
+Spearman correlation of each of the 46 interface features with the residual, on the same colour scale as the
+structure heat map in 3d.](../figures/campaign/interface.png)
+
 # 4. What predicts the pull-down with no perturbation
 
 A pull-down level mixes how much protein is in the tube (abundance) with how strongly it binds. Both
@@ -562,11 +655,19 @@ candidates, not a substitute for measurement.
   - `cm05_attrib.py`, `cm05b_assoc.py`, `cm05c_annot.py` (SAE);
   - `cm06_attn.py` (attention pooling), `cm07_baseline.py` (named properties);
   - `cm08_figures.py`, `cm09_stats.py` (bootstrap), `cm10_proteome.py`;
+  - `cm12_complex.py`, `cm16_network.py` (complex and network context, 3c);
+  - `cm13_structure.py`, `cm15_maskpool.py`, `cm14_struct_test.py` (AlphaFold structure, 3d);
+  - `cm17_pdb_index.py`, `cm18_interface.py`, `cm19_iface_test.py` (experimental interfaces, 3e);
   - `cm_launch.py` and `cm_summary.py` (sweeps);
-  - `slurm/cm0*.sbatch`.
+  - `slurm/cm0*.sbatch`, `slurm/cm1[3689].sbatch`.
 - **Results:** `data/campaign/`:
   - `runs/` (every group: config, R², out-of-fold predictions, latents, saved models);
   - `ridge.json`, `cm07_baseline.json`, `cm09_stats.json`;
   - `attrib/` (associations, annotated features);
+  - `cm12_complex.json`, `cm16_network.json`, `cm14_struct.json`, `cm19_iface.json`;
+  - `struct.tsv`, `interface.tsv`, `iface_entry.tsv`, `pdb_manifest.tsv`;
   - `proteome_predictions.tsv`.
+- **External data:** `data/external/`: `complexes/` (Complex Portal), `string/`, `sifts/`,
+  `afdb_human/` (AlphaFold human proteome tar), `pdb_assemblies/cif/` (29,816 RCSB biological assemblies,
+  11 GB, fetched by `code/fetch_pdb_assemblies.sh`).
 - **Figures:** `reports/figures/campaign/`.
