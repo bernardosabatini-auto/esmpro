@@ -61,7 +61,7 @@ def parse_pdb(txt):
     return np.array(an), np.array(rn), np.array(ri), np.array(xyz, dtype=np.float64), np.array(bf)
 
 
-def features(an, rn, ri, xyz, bf):
+def features(an, rn, ri, xyz, bf, want_residue=False):
     u, first = np.unique(ri, return_index=True); order = np.argsort(u); u = u[order]; first = first[order]
     seq = np.array([AA3.get(x, "X") for x in rn[first]]); L = len(u)
     if L < 20 or (seq == "X").mean() > .1: return None
@@ -160,15 +160,31 @@ def features(an, rn, ri, xyz, bf):
     d2 = np.linalg.norm(ca[2:] - ca[:-2], axis=1) if L > 2 else np.array([9.])
     f["helix_frac"] = float(((d3 > 4.5) & (d3 < 6.4)).mean()); f["sheet_frac"] = float((d2 > 6.4).mean())
     f["n_res_model"] = float(L)
+    if want_residue:
+        # per-residue arrays for mask pooling of the ESMC states (cm15), plus the model sequence so the caller
+        # can verify it matches the sequence that was embedded -- a silent off-by-one here would be invisible
+        return f, dict(seq="".join(seq), rsa=rsa.astype(np.float32), plddt=plddt.astype(np.float32))
     return f
+
+
+def read_fasta(p):
+    s, a = {}, None
+    for l in open(p):
+        if l.startswith(">"): a = l[1:].strip().split()[0]; s[a] = []
+        else: s[a].append(l.strip())
+    return {k: "".join(v) for k, v in s.items()}
 
 
 def main():
     want = set(pd.read_csv(f"{C}/union.tsv", sep="\t")["accession"].astype(str))
     rest = np.load(f"{C}/proteome_rest_features.npz", allow_pickle=True)["accession"].astype(str)
     want |= set(rest)
-    print(f"{len(want)} accessions wanted; streaming {TAR}", flush=True)
+    seqs = {}
+    for fa in ("union.fasta", "proteome_rest.fasta"):
+        if os.path.exists(f"{C}/{fa}"): seqs.update(read_fasta(f"{C}/{fa}"))
+    print(f"{len(want)} accessions wanted, {len(seqs)} sequences on hand; streaming {TAR}", flush=True)
     out, t0, seen, bad = {}, time.time(), 0, 0
+    acc_r, rsa_r, pl_r = [], [], []                                                   # per-residue, sequence-verified
     tf = tarfile.open(TAR, "r|")
     for m in tf:
         if not m.name.endswith("-model_v6.pdb.gz"): continue
@@ -178,17 +194,32 @@ def main():
         seen += 1
         try:
             txt = gzip.decompress(tf.extractfile(m).read()).decode()
-            f = features(*parse_pdb(txt))
-            if f is not None: out[acc] = f
-            else: bad += 1
+            r = features(*parse_pdb(txt), want_residue=True)
+            if r is None: bad += 1
+            else:
+                f, res = r
+                # the model sequence must be exactly the sequence that was embedded, or the per-residue arrays
+                # would be silently misaligned with the ESMC states
+                f["seq_match"] = float(seqs.get(acc, "") == res["seq"])
+                f["seq_len_fasta"] = float(len(seqs.get(acc, "")))
+                out[acc] = f
+                if f["seq_match"]: acc_r.append(acc); rsa_r.append(res["rsa"]); pl_r.append(res["plddt"])
         except Exception as e:
             bad += 1
             if bad < 5: print(f"  {acc}: {type(e).__name__} {e}", flush=True)
         if seen % 2000 == 0: print(f"  {seen} parsed, {len(out)} kept, {time.time() - t0:.0f} s", flush=True)
     T = pd.DataFrame(out).T; T.index.name = "accession"
     T.to_csv(f"{C}/struct.tsv", sep="\t")
+    ln = np.array([len(x) for x in rsa_r])
+    np.savez_compressed(f"{C}/res_struct.npz", accession=np.array(acc_r), start=np.concatenate([[0], np.cumsum(ln)[:-1]]),
+                        length=ln, rsa=np.concatenate(rsa_r), plddt=np.concatenate(pl_r))
     print(f"{len(T)} proteins with structural features, {bad} failed, {time.time() - t0:.0f} s", flush=True)
-    print(T.describe().T[["mean", "std", "min", "max"]].round(3).to_string(), flush=True)
+    print(f"sequence identical to the embedded sequence: {int(T.seq_match.sum())} / {len(T)} "
+          f"({T.seq_match.mean():.1%}); per-residue arrays written for those only", flush=True)
+    mm = T[T.seq_match == 0]
+    if len(mm): print(f"  mismatches: {int((mm.n_res_model < mm.seq_len_fasta).sum())} shorter than the FASTA "
+                      f"(AlphaFold fragments the >2700-residue entries), {int((mm.n_res_model >= mm.seq_len_fasta).sum())} other", flush=True)
+    print(T.drop(columns=["seq_match", "seq_len_fasta"]).describe().T[["mean", "std", "min", "max"]].round(3).to_string(), flush=True)
     print("CM13_DONE")
 
 

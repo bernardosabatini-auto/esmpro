@@ -50,6 +50,12 @@ Y = Yall[:, tix]; keep = has & np.isfinite(Y).any(1)
 rows = np.nonzero(keep)[0]; n = len(rows)
 LAY = spec.get("layers", [50]); use_sae = spec.get("sae", True); use_simple = spec.get("simple", True)
 XL = torch.from_numpy(np.load(f"{C}/layers.npy", mmap_mode="r")[rows][:, [l // 10 for l in LAY]]).to(dev) if LAY else None   # (n, L, 2560) fp16
+MP = spec.get("maskpool", [])               # cm15: layer-80 states pooled over structural masks, one extra slot each
+if MP:
+    mm = json.load(open(f"{C}/maskpool_meta.json"))["masks"]
+    XM = torch.from_numpy(np.load(f"{C}/maskpool.npy", mmap_mode="r")[rows][:, [mm.index(m) for m in MP]]).to(dev)
+    XL = XM if XL is None else torch.cat([XL, XM], 1)
+    LAY = list(LAY) + [f"mask:{m}" for m in MP]             # only len(LAY) is used from here on
 XS = torch.log1p(torch.from_numpy(np.load(f"{C}/sae_max.npy", mmap_mode="r")[rows]).to(dev).float()).half() if use_sae else None
 import pandas as pd
 SIM = pd.read_csv(f"{C}/simple.tsv", sep="\t", index_col=0).iloc[rows].fillna(0).values.astype(np.float32)
@@ -59,6 +65,11 @@ if COV:
     miss = np.isnan(NP); NP = np.where(miss, np.nanmedian(NP, 0), NP)       # median fill; flags carry the missingness
     SIM = np.hstack([SIM, NP, miss.astype(np.float32)])
     assert not (set(COV) & {"abundance_here"} and "GA33_input" in tnames), "abundance_here IS the GA33_input target: drop the target"
+if spec.get("struct"):                      # cm13 AlphaFold structural features, same median-fill + flag treatment
+    SD = pd.read_csv(f"{C}/struct.tsv", sep="\t", index_col=0).reindex(pd.read_csv(f"{C}/union.tsv", sep="\t")["accession"].astype(str))
+    SD = SD.drop(columns=[c for c in ("seq_match", "seq_len_fasta") if c in SD.columns]).iloc[rows].values.astype(np.float32)
+    sm = np.isnan(SD); SD = np.where(sm, np.nanmedian(SD, 0), SD)
+    SIM = np.hstack([SIM, SD, sm.any(1, keepdims=True).astype(np.float32)])
 XP = torch.from_numpy(SIM).to(dev) if use_simple else None
 Yt = torch.from_numpy(Y[rows]).to(dev); Mt = torch.isfinite(Yt); Yt = torch.nan_to_num(Yt); MASK = Mt.clone()
 if spec.get("residualize"):

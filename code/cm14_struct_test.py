@@ -39,7 +39,7 @@ o5 = np.load(f"{C}/runs/s5/ip_fold_changes_oof.npy"); r5 = np.load(f"{C}/runs/s5
 for j, t in enumerate(FC): P[r5, names.index(t)] = o5[:, j]
 
 ST = pd.read_csv(f"{C}/struct.tsv", sep="\t", index_col=0).reindex(U)
-SF = [c for c in ST.columns if c != "n_res_model"]
+SF = [c for c in ST.columns if c not in ("n_res_model", "seq_match", "seq_len_fasta")]
 X_struct = ST[SF].values.astype(np.float64); has_struct = np.isfinite(X_struct).all(1)
 SIM = pd.read_csv(f"{C}/simple.tsv", sep="\t", index_col=0).reindex(U)
 X_simple = SIM.values.astype(np.float64)

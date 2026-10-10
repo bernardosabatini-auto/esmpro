@@ -1,0 +1,55 @@
+{
+ "layers": [
+  50,
+  80
+ ],
+ "sae": false,
+ "simple": true,
+ "targets": [
+  "GA20_salt75",
+  "GA20_salt150",
+  "GA22_ip_salt60",
+  "GA22_ip_salt120",
+  "GA24_ip_salt60",
+  "GA24_ip_salt120",
+  "GA33_A1_heat37",
+  "GA33_A1_heat43",
+  "GA33_B11_heat37",
+  "GA33_B11_heat43",
+  "FS76_mg"
+ ],
+ "defaults": {
+  "lr": [
+   0.0003,
+   0.001,
+   0.003
+  ],
+  "wd": [
+   0.001,
+   0.01,
+   0.1
+  ],
+  "drop": [
+   0.1,
+   0.3
+  ],
+  "in_drop": [
+   0.2,
+   0.5
+  ],
+  "seeds": 4,
+  "epochs": 150,
+  "batch": 512
+ },
+ "groups": [
+  {
+   "name": "fc_struct",
+   "mode": "proj",
+   "p": 128,
+   "s": 128,
+   "h": 1024,
+   "k": 64
+  }
+ ],
+ "struct": true
+}

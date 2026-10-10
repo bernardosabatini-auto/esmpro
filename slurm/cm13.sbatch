@@ -4,17 +4,20 @@
 #SBATCH -p kempner_rtx
 #SBATCH --gres=gpu:1
 #SBATCH -c 8
-#SBATCH --mem=48G
-#SBATCH -t 0-02:00
+#SBATCH --mem=64G
+#SBATCH -t 0-03:00
 #SBATCH -o logs/cm13_%j.log
 #SBATCH -e logs/cm13_%j.log
-# AlphaFold structural features (code/cm13_structure.py) and the residual test (code/cm14_struct_test.py).
-# The work is single-core CPU -- freesasa and cKDTree over 20k models, ~11 min -- but the CPU account has
-# MaxSubmit 0, so it takes the smallest GPU partition and leaves the card idle. Nothing here uses CUDA.
-set -eu
+# AlphaFold structural features and the tests built on them:
+#   cm13  stream the AlphaFold human proteome tar, per-protein structural features + per-residue SASA/pLDDT
+#   cm15  pool the ESMC residue states over the structural masks
+#   cm14  does any of it explain the residual of the sequence model?
+# All three are single-core CPU work (freesasa, cKDTree, mmap reads over res_L80.npy). The CPU account has
+# MaxSubmit 0, so this takes the smallest GPU partition and leaves the card idle. Nothing here uses CUDA.
+set -u
 export ESM_PROAE_ROOT=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae
 cd $ESM_PROAE_ROOT
 export PYTHONPATH=$ESM_PROAE_ROOT/code
-source ~/.bashrc; conda activate dendritic_env
-python -u code/cm13_structure.py
-python -u code/cm14_struct_test.py
+PY=/n/home08/bsabatini/.conda/envs/dendritic_env/bin/python
+$PY -u code/cm13_structure.py && $PY -u code/cm15_maskpool.py && $PY -u code/cm14_struct_test.py
+echo "CM13_EXIT=$?"

@@ -52,13 +52,17 @@ protein is ever trained on. Each number is read against its own split-half ceili
 | What does sequence add beyond abundance? | Salt and Mg responses: +0.056 and +0.045 R² / ceiling over measured abundance and Tm alone |
 | Regressing out the baseline | Salt and Mg responses are almost untouched (83-99% of their variance remains). Heat is not: the baseline accounts for about half of the 43 °C response and half of what sequence predicts about it |
 | Is the plateau a ceiling on predictability? | No, a ceiling on *per-protein* information. The residual is strongly shared among members of the same complex (r 0.22-0.58, null ~0.00). One complex-mate term lifts mean R² / ceiling 0.309 → 0.410, far more than any architecture change |
+| Does AlphaFold structure help? | No. Surface vs buried ion pairs, charged surface patches, Debye-Huckel screening at the real ionic strengths and Mg^2+^ carboxylate clusters all add 0.000 over the embedding; the largest residual correlation of any structural feature is 0.092 |
 | What the SAE features say | Pull-down and abundance: structured enzymes up, phosphorylated disordered Ser/Thr-rich regions down. Abundance-free binding, salt and Mg: membrane-helix features. Heat: structured α/β enzyme cores |
 
 **The bottom line.** Sequence predicts about a quarter of what these measurements reliably contain, and
 an MLP over 94 architectures, attention pooling and multi-task sharing all hit the same plateau. That
-plateau is not a limit on predictability: a third of what the model misses is shared among the subunits
-of a complex, which no sequence model can reach because the folds separate homologs and complex-mates
-are not homologs. Adding one complex-context term takes mean R² / ceiling from 0.31 to 0.41. The
+plateau is not a limit on predictability, but the way past it is not more structure: AlphaFold surface
+electrostatics, ion pairs and mask-pooled residue states all add nothing, because the embedding already
+contains them. What the model misses is instead shared among the subunits of a complex, which no
+sequence model can reach because the folds separate homologs and complex-mates are not homologs. One
+complex-context term takes mean R² / ceiling from 0.31 to 0.41 for the quarter of proteins in a curated
+complex, though it fades to +0.007 across the broad STRING physical network. The
 no-perturbation pull-down is mostly abundance and stability. The salt and Mg responses are where
 sequence carries information that the measured lysate properties do not.
 
@@ -274,8 +278,95 @@ Portal is incomplete, so the coverage is a floor, not a statement about the othe
 measured partner data, so it improves annotation of a *measured* proteome, not the sequence-only prediction of an
 unmeasured one -- for a complex with no measured member it offers nothing.
 
+**How far does it reach?** Complex Portal annotates only a quarter of the measured proteins, so the test was
+repeated on the STRING v12 *physical* subnetwork at three confidence cutoffs, which buys coverage at the cost of
+specificity (`cm16`, same training-fold-only design).
+
+| Graph | Proteins | Median degree | Residual r | R2/ceil. | + partner | Gain |
+|-----------------|------|----------|--------|------|-------|-----|
+| Complex Portal | 2,858 | 5 | 0.346 | 0.300 | 0.401 | +0.101 |
+| STRING physical >= 900 | 6,014 | 4 | 0.187 | 0.291 | 0.323 | +0.032 |
+| STRING physical >= 700 | 7,341 | 6 | 0.145 | 0.286 | 0.306 | +0.019 |
+| STRING physical >= 400 | 10,165 | 12 | 0.085 | 0.280 | 0.287 | +0.007 |
+
+![Residual sharing by graph. Left: per target, the four graphs ordered by coverage. Right: R2 / ceiling with the partner term against sequence alone; points above the diagonal are gains.](../figures/campaign/network_residual.png){width=100%}
+
+The effect is **specific to curated stable complexes and decays fast as the graph widens**. STRING reaches 10,165
+of 11,570 proteins, but at that coverage a protein's partner mean is an average over a dozen loose associations
+and is worth +0.007. This tempers the claim above: complex context is a large lever for the quarter of the
+proteome that sits in a defined assembly, and a small one for the rest. It is not a general route to the other
+three quarters, and the honest summary of the campaign-wide number is that 0.41 applies to 2,858 proteins.
+
 The conclusion for the campaign is that the ~0.27 plateau is the ceiling on *per-protein* sequence information,
 not on predictability. Interaction context is a larger lever than any change to the network.
+
+# 3d. Structure, tested directly: it adds nothing
+
+A simple probe motivates this section. Of the sequence covariates, net charge per residue is the single strongest
+predictor of the salt response, reproducibly across three independent experiments (Spearman rho 0.20-0.23 for
+GA_20, GA_22 and GA_24). But the *capacity* to form ion pairs is not: 2 x min(D+E, K+R) gives rho -0.04 to -0.10,
+and the total charged fraction -0.02 to -0.09. And every one of these is orthogonal to the sequence model's
+residual (|rho| <= 0.07), so the network has already absorbed the compositional charge signal completely. For
+salt its prediction is close to a pure charge axis: rho(prediction, measured) 0.36-0.44 against rho(prediction,
+net charge) 0.38-0.41.
+
+Whatever is left, if it is a protein property at all, therefore has to be spatial -- *where* the charge sits,
+whether an ion pair is buried or solvent-facing, how large a contiguous charged patch is. None of that survives
+averaging over residues. So the AlphaFold human proteome was folded in (`cm13`): 20,256 models parsed, none
+failed, and the model sequence is byte-identical to the embedded sequence for 20,001 of them, so per-residue
+quantities cannot be silently misaligned. Features per protein: relative SASA and burial; ion pairs split into
+buried and surface; surface charge, buried charge, the most charged 10 A surface neighbourhood, dipole; the change
+in intramolecular Debye-Huckel energy between the two ionic strengths **actually used in each experiment**
+(kappa = 0.329 sqrt(I) /A, with MgCl2 contributing I = 3c); carboxylate clusters as the geometric signature of a
+Mg^2+^ site; exposed and buried hydrophobic patches; pLDDT disorder and domain counts; crude secondary structure.
+
+The test is not whether these predict the response -- they do, because they correlate with composition -- but
+whether they predict the **residual** of the out-of-fold sequence prediction (`cm14`, cross-fitted ridge, alpha
+chosen inside the training folds).
+
+![Left: R2 / ceiling for each target with each block added to the sequence model. Right: Spearman of every structural feature with the residual, on a +-0.2 scale.](../figures/campaign/structure.png){width=100%}
+
+| Added to the sequence model | Mean R2 / ceiling, 33 targets |
+|------------------------------------|------------------------|
+| nothing (the sequence model) | 0.273 |
+| composition, 25 covariates (negative control) | 0.271 |
+| **AlphaFold structure, 28 features** | **0.272** |
+| named properties (abundance, Tm, keywords) | 0.320 |
+| complex context | 0.304 |
+| structure + named | 0.322 |
+| everything | 0.348 |
+
+* **Structure adds nothing.** The bootstrap interval straddles zero on almost every target, and structure over
+  the named properties is likewise null. The composition control behaves identically, which is the evidence that
+  the test can detect "already absorbed" rather than being insensitive.
+* **Resolving ion pairs in 3D does not rescue the hypothesis.** Averaged over the 14 salt targets, every charge
+  and ion-pair feature correlates with the measured response and with nothing in the residual:
+
+| Feature | rho with measured | rho with residual |
+|-------------------------------|-------|-------|
+| surface charge | +0.167 | +0.027 |
+| buried charge | +0.152 | +0.016 |
+| largest positive surface patch | +0.075 | +0.010 |
+| salt bridges per residue | -0.041 | +0.004 |
+| salt bridges, buried only | -0.006 | +0.003 |
+| salt bridges, surface only | -0.048 | +0.006 |
+| Debye-Huckel dE at 150 mM | -0.080 | -0.035 |
+| carboxylate clusters (Mg^2+^) | -0.042 | +0.012 |
+
+The largest residual correlation of **any** structural feature with **any** target is 0.092.
+
+**Pooling the embedding over structural masks does not help either.** Instead of averaging the ESMC states over
+  the whole protein, they were pooled separately over surface, buried, ordered, disordered, charged-surface,
+  hydrophobic-surface and buried-hydrophobic residues (`cm15`), giving the network the masks rather than making it
+  learn them. On the 11 fold changes: sequence alone 0.2053, + structural features 0.2068, + mask pooling 0.2078,
+  + both 0.2066. The internal check that the "all" mask reproduces the stored mean-pooled layer 80 gives r = 1.0000.
+
+**The caveat that matters.** An AlphaFold model is itself predicted from sequence, and protein language models are
+known to encode structure implicitly, so this is close to asking whether one sequence-derived view adds to
+another. The result says that nothing these summary statistics extract from a predicted **single-chain, unbound,
+unmodified** structure is missing from the embedding. It does not say 3D geometry is irrelevant to salt
+sensitivity. The quantity the salt-bridge hypothesis is really about is the electrostatics of the chaperone-client
+*interface*, which needs a structure of the complex, not of the client alone.
 
 # 4. What predicts the pull-down with no perturbation
 
