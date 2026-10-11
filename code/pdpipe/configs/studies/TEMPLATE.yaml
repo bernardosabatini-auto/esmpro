@@ -1,0 +1,37 @@
+# Template for a new lysate. Copy to <yourname>.yaml, fill in, then:
+#
+#   python -m pdpipe.study --study <yourname> --check      # what your data can support
+#   python -m pdpipe.study --study <yourname> --dry-run    # the plan, nothing executed
+#   python -m pdpipe.study --study <yourname>              # run it
+#
+# Each fraction needs its own pdpipe config in ../<name>.yaml describing how to parse that MS report
+# (see ga22.yaml / ga22s.yaml for a DIA-NN pair). The sample-name regex is the only fiddly part.
+name: MYSTUDY
+title: "One line describing the experiment"
+bait: P04792              # UniProt accession of the bait, for the self-check
+
+fractions:
+  ip:    null             # REQUIRED: the pull-down
+  sup:   null             # post-IP supernatant. Enables the bound:free partition and the stage
+                          #   gradient of report 3g. Cheapest useful addition: it is the same tube.
+  input: null             # pre-IP lysate. Enables enrichment, and abundance measured in THIS lysate
+                          #   instead of borrowed from PaxDb. Abundance is the strongest single
+                          #   predictor of a baseline pull-down (report section 4), so this matters.
+  mock:  null             # BAIT-FREE IP (beads only, or untagged control). The most informative
+                          #   fraction the campaign never had. It gives (a) specific binding,
+                          #   IP minus mock, which separates binding from bead carry-over, and
+                          #   (b) a DIRECT test of whether capture itself creates the complex-level
+                          #   structure of report 3g, instead of the indirect argument used there.
+
+reference: null           # the condition key everything is contrasted against, e.g. "CTRL|0|0".
+                          #   Leave null to use the first condition.
+contrasts: []             # names from the ip fraction's own config; empty means "all of them".
+
+conditions_include: []    # regexes; keep only matching conditions (e.g. drop drug arms)
+conditions_exclude: []
+exclude_samples: []       # individual sample columns that failed QC
+
+options:
+  layers: [50, 80]
+  mlp: false
+  structure: false

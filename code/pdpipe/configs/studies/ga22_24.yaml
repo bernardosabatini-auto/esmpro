@@ -1,0 +1,25 @@
+# GA_22 + GA_24: HSPB1 pull-down with its own post-IP supernatant, KCl series.
+# This is the worked example and the regression test: it should reproduce the campaign's numbers for
+# these runs (report sections 3c and 3g). It has ip and sup, but no pre-IP lysate and no bait-free IP.
+name: GA22
+title: "HSPB1 pull-down with matched supernatant, KCl series (GA_22)"
+bait: P04792              # HSPB1; checked to be among the top of its own pull-down
+
+fractions:
+  ip:    ga22             # pdpipe config name, configs/ga22.yaml
+  sup:   ga22s            # post-IP supernatant
+  input: null             # no pre-IP lysate was measured
+  mock:  null             # no bait-free IP was measured
+
+reference: "0|0"          # condition keys here are KCl|staurosporine, so this is 0 mM KCl, no drug
+contrasts: [KCl60_stau0, KCl120_stau0]
+
+# The staurosporine arms are left out: the drug's effect on its own targets (kinases) is large and
+# specific, and the campaign's targets are the drug-free KCl series only. Condition keys are KCl|stau,
+# so "ends in |0" keeps the three drug-free salt conditions.
+conditions_include: ['\|0$']
+
+options:
+  layers: [50, 80]        # ESMC-6B layers used by the ridge; the campaign's best pair
+  mlp: false              # the multi-task MLP sweep is a separate ~10 GPU-h job
+  structure: false        # 3d-3f; all null in the campaign
