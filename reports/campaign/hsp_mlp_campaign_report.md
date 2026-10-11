@@ -54,6 +54,7 @@ protein is ever trained on. Each number is read against its own split-half ceili
 | Is the plateau a ceiling on predictability? | No, a ceiling on *per-protein* information. The residual is strongly shared among members of the same complex (r 0.22-0.58, null ~0.00). One complex-mate term lifts mean R² / ceiling 0.309 → 0.410, far more than any architecture change |
 | Does AlphaFold structure help? | No. Surface vs buried ion pairs, charged surface patches, Debye-Huckel screening at the real ionic strengths and Mg^2+^ carboxylate clusters all add 0.000 over the embedding; the largest residual correlation of any structural feature is 0.092 |
 | Does the native partner's interface help? | No. Measured on 29,816 experimental assemblies covering 6,306 proteins: how much exposed hydrophobic and aggregation-prone surface a native partner buries adds +0.002 (salt and heat: −0.000). Three pre-stated directional predictions all fail |
+| Does a *predicted* chaperone-client interface help? | No, and the measurement is half noise. 4,787 Boltz-2 co-folds of the HSPB1 ACD dimer with tiled 16-mer client windows: all four pre-stated predictions fail, including real windows versus their own scrambles (-0.026, p = 0.955). The same window re-run moves by 0.140 ipTM, so half the window score is run-to-run noise |
 | What the SAE features say | Pull-down and abundance: structured enzymes up, phosphorylated disordered Ser/Thr-rich regions down. Abundance-free binding, salt and Mg: membrane-helix features. Heat: structured α/β enzyme cores |
 
 **The bottom line.** Sequence predicts about a quarter of what these measurements reliably contain, and
@@ -66,7 +67,11 @@ complex-context term takes mean R² / ceiling from 0.31 to 0.41 for the quarter 
 complex, though it fades to +0.007 across the broad STRING physical network. That complex effect is not
 an interface effect: on 29,816 experimental structures, how much surface a native partner buries explains
 none of the residual and only +0.014 of the complex-shared part, so what a complex contributes is
-something other than steric competition for the chaperone's binding surface. The
+something other than steric competition for the chaperone's binding surface. Predicting the missing
+structure does not rescue it either: 4,787 co-folds of the HSPB1 ACD dimer with tiled client windows fail
+every pre-stated test, and cannot tell a real window from its own scramble, so three independent
+structural approaches now land in the same narrow band just above nothing (largest residual correlation
+0.092, 0.087 and 0.134). The
 no-perturbation pull-down is mostly abundance and stability. The salt and Mg responses are where
 sequence carries information that the measured lysate properties do not.
 
@@ -461,6 +466,154 @@ bars sit on the sequence-only bars, while named properties and the complex-mate 
 Spearman correlation of each of the 46 interface features with the residual, on the same colour scale as the
 structure heat map in 3d.](../figures/campaign/interface.png)
 
+# 3f. The chaperone's own interface, predicted: a null, and a measurement too noisy to rest on
+
+3e closed the version of the competition hypothesis that experimental structures can answer, but it left
+the question the hypothesis is really about untouched: the interface between HSPB1 and a *non-native*
+client. No such structure exists in the PDB. This tier predicted it (`cm20`-`cm25`).
+
+**Design A.** The HSPB1 alpha-crystallin domain (ACD, residues 84-171) as a dimer -- the client-binding
+unit, and exactly the construct crystallised in 9ef3 and 3q9p -- co-folded with one short window of a
+client, using Boltz-2 in single-sequence mode. A short window is the point: HSPB1 binds locally unfolded
+segments, so a full-length co-fold would dock the chaperone onto a *folded* client surface, which is the
+state 3e already showed is the wrong one. 200 proteins, 20 from each decile of the measured bound:free
+partition, every sequence tiled into non-overlapping 16-mers, 4,787 co-folds in 3.98 h on one RTX PRO
+6000 at 97.7 % mean utilisation and 13.0 GB of 96 GB. No job failed.
+
+Windows were tiled **uniformly**, not chosen by hydrophobicity or aggregation propensity. Choosing them
+would have confounded the structural score with the composition that selected them, so that the score
+would "predict" binding for the same reason a hydrophobicity scale does -- which the sequence model
+already contains.
+
+**The readout** is the bound:free partition of GA_22 and GA_24, because the partition divides abundance
+out experimentally rather than statistically: a protein scores high because it binds HSPB1, not because
+there is a lot of it. The two runs are independent measurements of the same quantity and agree at
+r = 0.914, which is the ceiling this tier could reach.
+
+## The validation gate, passed before any GPU time was committed to the pilot
+
+9ef3 is the HSPB1 ACD with its own C-terminal IxI motif peptide bound in the beta4/beta8 groove. It was
+**released 2026-06-24, after Boltz-2 was trained**, so it is a genuine held-out test rather than a recall
+exercise. The groove was not asserted from the literature; it was measured as the 20 residues of 9ef3
+chain A within 4.5 A of the peptide.
+
+| Check | Result | |
+|---|---|---|
+| ACD fold, holo | monomer core Ca RMSD 1.54-2.44 A | pass |
+| ACD fold, apo | 3.36 A | marginal |
+| Held-out peptide placement | **1.27 A**, centroid off by 0.77 A | pass |
+| Groove overlap | **all 14 contacts among the 20 experimental groove residues** | pass |
+| Contrast | held-out positive ipTM 0.899 vs best homopolymer negative 0.746 | pass |
+
+One real defect: the peptide is threaded **backwards**. Forward-order RMSD is 16.49 A, reverse-order
+1.27 A, and the per-residue deviations (25.5, 19.7, 13.3, 7.5, 1.2, 5.8, 12.7, 18.7, 25.0 A) are symmetric
+about the centre -- the signature of an extended peptide lying in the right channel the wrong way round.
+Site, position and conformation are right; polarity is wrong. Neither quantity the pilot uses depends on
+direction, so the gate stands, but a model that cannot orient a peptide it has placed correctly is not a
+model to build a mechanism on.
+
+A second symmetry trap had to be cleared first, the same one as in 3e: the ACD dimer has a two-fold axis,
+so its two grooves are equivalent by construction, and scoring against the wrong one reports the ~40 A
+distance between them as if it were an error.
+
+## Four predictions, fixed before the run finished; all four fail
+
+| | Prediction | Result |
+|---|---|---|
+| P1 | interface score correlates positively with measured partition | **fails.** Every aggregation of every score lies between -0.17 and +0.02. The most reliable score reaches rho = -0.127 [-0.267, +0.021] -- the wrong sign |
+| P2 | real windows beat their own composition-matched shuffles | **fails.** Real 0.612, shuffled 0.638, difference **-0.026** [-0.059, +0.006]; Wilcoxon p = 0.955 in the predicted direction |
+| P3 | structure adds over window composition | **fails.** Cross-validated rho: composition -0.059, structure -0.093, both -0.035 |
+| P4 | structure adds over the ESMC-6B + SAE sequence model | **fails.** Sequence model alone rho 0.335; adding structure *lowers* it to 0.232. Largest correlation of any structural score with the sequence model's residual is 0.134, wrong-signed, CI including zero |
+
+P2 is the one that matters most. If the co-fold cannot tell a real 16-mer from its own scramble, it is not
+reading sequence order, and a score that does not read sequence order cannot rank clients. For context, the
+largest residual correlation here (0.134) sits alongside 0.092 for AlphaFold monomer features (3d) and
+0.087 for native-partner interfaces (3e) -- three independent structural approaches landing in the same
+narrow band just above nothing.
+
+## The controls say what the score is actually measuring
+
+| Control | ipTM | Percentile among 4,577 real client windows |
+|---|---|---|
+| 9ef3 IxI 9-mer (held out) | 0.899 | 97.9 |
+| IxI 16-mer (held out) | 0.790 | 77.9 |
+| **poly-G 16-mer (negative)** | **0.746** | **69.2** |
+| 6gjh N-terminal 5-mer (in training) | 0.650 | 51.1 |
+| poly-S (negative) | 0.614 | 44.7 |
+| 6gjh N-terminal 16-mer (in training) | 0.549 | 34.4 |
+| poly-EK (negative) | 0.497 | 27.5 |
+| poly-K (negative) | 0.299 | 5.4 |
+| poly-E (negative) | 0.227 | 1.3 |
+
+The evolved IxI motif does score at the top. But poly-glycine -- a sequence with no side chains at all --
+outscores both in-training positives and 69 % of real client windows, while the negatives that do sit at
+the floor are the charged ones. On this evidence ipTM mostly separates "charged homopolymer" from
+"everything else", which is a far weaker axis than the gate alone suggested.
+
+## How much of the score is noise
+
+Boltz-2 defaults to no seeding, so the pilot was one unseeded draw. Re-running 548 of the same windows is a
+second independent draw from the same model on the same input (`cm25`).
+
+A window's ipTM moves by **0.140 on average between two runs of identical input**, against a spread across
+different windows of 0.185. Test-retest r = **0.497**: half the variance in the pilot's window scores is
+run-to-run noise.
+
+That matters less than it sounds for a per-protein score built from ~22 windows, and more than it sounds
+for the aggregations that take extremes. Measured by split-half over each protein's own windows:
+
+| Per-protein score | Reliability | Ceiling on \|rho\| | Observed \|rho\| |
+|---|---|---|---|
+| groove_recall_top3 | 0.461 | 0.679 | 0.127 |
+| iptm_top3 | 0.359 | 0.599 | 0.047 |
+| groove_recall_mean | 0.300 | 0.548 | 0.120 |
+| iptm_fhi | 0.170 | 0.413 | 0.108 |
+| iptm_max | 0.169 | 0.411 | 0.022 |
+| groove_recall_max | 0.134 | 0.366 | 0.054 |
+| iptm_mean | 0.115 | 0.340 | 0.135 |
+| groove_recall_fhi | 0.103 | 0.321 | 0.168 |
+
+Three of the eight have ceilings of 0.55-0.68 and observe 0.05-0.13, so for those the null is real: the
+instrument had room to show an effect three to five times larger than it did. The other five are too noisy
+to interpret in either direction, and that includes `max`, which is the most biologically natural
+aggregation -- "the best binding site on the protein" -- because a maximum over noisy values is mostly a
+maximum over noise.
+
+**A selection trap worth recording.** The score with the largest correlation, `groove_recall_fhi` at
+-0.168, is the single *least* reliable of the eight. Choosing a headline by effect size would have picked
+the noisiest feature; the figure selects on reliability instead, which does not depend on the outcome.
+
+## What this closes
+
+The honest summary is a null with a caveat, not a clean null. Where the measurement is reliable enough to
+interpret, a predicted HSPB1-ACD / client-window interface carries no information about which proteins
+HSPB1 actually binds -- it does not beat composition, does not beat a scramble, and subtracts from the
+sequence model. Where the measurement is not reliable enough, the tier is uninformative rather than
+negative.
+
+Scaling Design A from 200 to 2,000 proteins would not fix this. The limit is not sample size; the limit is
+that the per-window score is half noise and does not respond to sequence order, and ten times more proteins
+leaves both properties unchanged. The failure of P2 in particular is a property of the model, not of the
+sample.
+
+Two things could change the answer, and neither is a bigger version of this experiment. First, the ACD
+dimer alone omits the N-terminal region, which carries much of sHSP client binding and is disordered --
+the part a co-folding predictor is worst at, and the part no crystal structure constrains. Second, a
+co-folding model trained on native crystallised interfaces is being asked about a transient,
+low-affinity, non-native complex; the reversed threading of a peptide it otherwise placed to 1.27 A is a
+small visible symptom of that mismatch. Both point away from more structure prediction and back toward
+the data: the complex effect of 3c remains real, remains unexplained by occlusion (3e) or by a predicted
+chaperone interface (3f), and the next thing to separate is abundance from binding strength in the
+measurements themselves.
+
+![Design A pilot. A: the validation gate against 9ef3, released after Boltz-2 was trained. B: where every
+control falls among 4,577 real client windows. C, D: the most reliable per-protein score against the
+measured partition, as a scatter and by decile. E: real windows against their own composition-matched
+shuffles. F: cross-validated prediction from each feature block. G: the same window re-run, showing half
+the score is run-to-run noise. H: observed correlation against the ceiling each score's reliability
+allows.](../figures/campaign/pilot.png)
+
+
 # 4. What predicts the pull-down with no perturbation
 
 A pull-down level mixes how much protein is in the tube (abundance) with how strongly it binds. Both
@@ -658,16 +811,26 @@ candidates, not a substitute for measurement.
   - `cm12_complex.py`, `cm16_network.py` (complex and network context, 3c);
   - `cm13_structure.py`, `cm15_maskpool.py`, `cm14_struct_test.py` (AlphaFold structure, 3d);
   - `cm17_pdb_index.py`, `cm18_interface.py`, `cm19_iface_test.py` (experimental interfaces, 3e);
+  - `cm20_pilot_select.py`, `cm21_windows.py` (pilot set and co-folding jobs, 3f),
+    `cm22_val_score.py` (validation gate against 9ef3), `cm23_pilot_test.py` (the four predictions),
+    `cm24_pilot_figure.py`, `cm25_reliability.py` (test-retest and split-half ceilings);
   - `cm_launch.py` and `cm_summary.py` (sweeps);
-  - `slurm/cm0*.sbatch`, `slurm/cm1[3689].sbatch`.
+  - `slurm/cm0*.sbatch`, `slurm/cm1[3689].sbatch`, `slurm/boltz_val.sbatch`,
+    `slurm/boltz_pilot.sbatch`, `slurm/boltz_rep.sbatch`.
 - **Results:** `data/campaign/`:
   - `runs/` (every group: config, R², out-of-fold predictions, latents, saved models);
   - `ridge.json`, `cm07_baseline.json`, `cm09_stats.json`;
   - `attrib/` (associations, annotated features);
   - `cm12_complex.json`, `cm16_network.json`, `cm14_struct.json`, `cm19_iface.json`;
+  - `cm20_pilot.json`, `cm22_val.tsv`, `cm23_pilot.json`, `cm25_reliability.json`;
+  - `pilot_proteins.tsv`, `boltz_jobs.tsv`, `pilot_windows.tsv` (4,787 co-folds),
+    `pilot_scores.tsv`, `rep_pairs.tsv`;
+  - `boltz/` (4,787 + 600 predicted structures and confidence files, 2.1 GB);
   - `struct.tsv`, `interface.tsv`, `iface_entry.tsv`, `pdb_manifest.tsv`;
   - `proteome_predictions.tsv`.
 - **External data:** `data/external/`: `complexes/` (Complex Portal), `string/`, `sifts/`,
   `afdb_human/` (AlphaFold human proteome tar), `pdb_assemblies/cif/` (29,816 RCSB biological assemblies,
-  11 GB, fetched by `code/fetch_pdb_assemblies.sh`).
+  11 GB, fetched by `code/fetch_pdb_assemblies.sh`). Boltz-2 weights live in `~/.boltz` (3.7 GB), and
+  the co-folding environment is the `boltz` conda env (boltz 2.2.1, torch 2.14.1+cu130,
+  cuequivariance kernels; CUDA 13 is required by the Blackwell RTX PRO 6000 cards).
 - **Figures:** `reports/figures/campaign/`.
