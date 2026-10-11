@@ -1,6 +1,6 @@
 ---
 title: "One sequence model for every HSP pull-down: what ESMC-6B predicts, and what it does not"
-date: "9 October 2026"
+date: "11 October 2026"
 geometry: margin=2.1cm
 fontsize: 10pt
 header-includes:
@@ -74,6 +74,11 @@ structural approaches now land in the same narrow band just above nothing (large
 0.092, 0.087 and 0.134). The
 no-perturbation pull-down is mostly abundance and stability. The salt and Mg responses are where
 sequence carries information that the measured lysate properties do not.
+
+**Status.** This is the final version of the campaign report. Every analysis these data support has been
+run; the complex effect is established as real and reproducible, and is left unattributed, which is the
+honest end point rather than a gap to be papered over. What remains is five questions for the lab and two
+proposed experiments, set out in section 9.
 
 # 1. Data, targets and features
 
@@ -309,6 +314,12 @@ three quarters, and the honest summary of the campaign-wide number is that 0.41 
 The conclusion for the campaign is that the ~0.27 plateau is the ceiling on *per-protein* sequence information,
 not on predictability. Interaction context is a larger lever than any change to the network.
 
+**What that context is, this section does not say**, and the three sections that follow were written to find out.
+Each takes one mechanistic reading of "complex membership" and tests it directly: the client's own folded surface
+(3d), the surface a native partner buries (3e), and the chaperone's own predicted binding interface (3f). All
+three return nothing. The complex effect is therefore established as real and reproducible, and remains
+unattributed at the end of this campaign -- a result worth stating plainly rather than leaving implicit.
+
 # 3d. Structure, tested directly: it adds nothing
 
 A simple probe motivates this section. Of the sequence covariates, net charge per residue is the single strongest
@@ -376,6 +387,11 @@ another. The result says that nothing these summary statistics extract from a pr
 unmodified** structure is missing from the embedding. It does not say 3D geometry is irrelevant to salt
 sensitivity. The quantity the salt-bridge hypothesis is really about is the electrostatics of the chaperone-client
 *interface*, which needs a structure of the complex, not of the client alone.
+
+*Resolved in 3e and 3f.* That escape route was followed, twice: once with experimental complexes on 6,306
+proteins (3e) and once with a predicted chaperone-client complex (3f). Both return nothing. The caveat stated
+here is therefore no longer an open one, and the sentence above should be read as the question that the next two
+sections go on to answer, not as an outstanding limitation of this one.
 
 # 3e. The native partner, tested on experimental structures: it adds nothing either
 
@@ -460,6 +476,11 @@ It does not touch the chaperone side: none of these structures contains HSPB1, a
 is ultimately about is the interface between the chaperone and a *non-native* client -- a state that is
 essentially absent from the PDB, because it is transient, low-affinity and disordered. Testing that needs a
 model of the bound complex, which is the next tier and a genuinely different experiment.
+
+*That tier was run; it is 3f.* 4,787 Boltz-2 co-folds of the HSPB1 α-crystallin-domain dimer with tiled client
+windows fail every pre-stated test. The escape route this section leaves open is therefore closed as far as a
+co-folding model can close it -- with the qualification, developed in 3f, that half of the co-fold score is
+run-to-run noise.
 
 ![Native-partner occlusion against the sequence model's residual. Left: R² / ceiling per target; the interface
 bars sit on the sequence-only bars, while named properties and the complex-mate term rise above them. Right:
@@ -601,10 +622,17 @@ dimer alone omits the N-terminal region, which carries much of sHSP client bindi
 the part a co-folding predictor is worst at, and the part no crystal structure constrains. Second, a
 co-folding model trained on native crystallised interfaces is being asked about a transient,
 low-affinity, non-native complex; the reversed threading of a peptide it otherwise placed to 1.27 A is a
-small visible symptom of that mismatch. Both point away from more structure prediction and back toward
-the data: the complex effect of 3c remains real, remains unexplained by occlusion (3e) or by a predicted
-chaperone interface (3f), and the next thing to separate is abundance from binding strength in the
-measurements themselves.
+small visible symptom of that mismatch. Both point away from more structure prediction, and the complex
+effect of 3c remains real, remains unexplained by the client's own surface (3d), by native-partner
+occlusion (3e), or by a predicted chaperone interface (3f).
+
+An earlier draft of this paragraph ended by proposing that the next step was to separate abundance from
+binding strength in the measurements. That step is already taken and is reported above, not ahead: GA_22
+and GA_24 supply a bound:free partition against their own matched supernatants, GA_33 supplies enrichment
+over a reference input, and section 4 reads the result off those abundance-free targets directly. The
+separation did not dissolve the complex effect; the enrichment targets carry it as strongly as the raw
+pull-downs do (residual r 0.27, section 3c). With that correction, this campaign has no remaining analysis
+that these data support. Section 9 states what does remain.
 
 ![Design A pilot. A: the validation gate against 9ef3, released after Boltz-2 was trained. B: where every
 control falls among 4,577 real client windows. C, D: the most reliable per-protein score against the
@@ -778,7 +806,9 @@ candidates, not a substitute for measurement.
 # 8. Critical evaluation
 
 1. **One protein-level representation.** ESMC-6B mean-pooled states carry about a quarter of the
-   reliable variance, and nothing tried here moved that. The rest is either not in the sequence (lysate
+   reliable variance, and nothing tried here moved that -- not 94 architectures, not attention over
+   7.4 M residue states, not multi-task sharing, and not any of the three structural tiers (3d, 3e, 3f).
+   The rest is either not in the sequence (lysate
    state, complex membership, post-translational state, local concentration) or not in this
    representation. The measured covariates show the first is substantial for baselines.
 2. **Abundance as input or target.** For baselines, measured abundance is the strongest predictor, and
@@ -791,14 +821,98 @@ candidates, not a substitute for measurement.
 5. **The SAE is not an accurate input.** It is the most interpretable one, but on its own it predicts
    less (0.18) than the dense layers. Its feature associations describe the measurements, not the
    model's predictions.
-6. **Bugs found and fixed during the campaign:**
+6. **Bugs and analysis errors found and fixed during the campaign:**
    - a shared row-index file overwritten by later specs, which zeroed the first latent read-out;
    - a drift-covariate aliasing in the linear model on sparse proteins (from the GA_22/24 work);
-   - variable shadowing in the per-residue writer, caught by its own completeness assertion.
+   - variable shadowing in the per-residue writer, caught by its own completeness assertion;
+   - in 3e, aggregating interface features over however many structures a protein happens to have:
+     a maximum over 311 structures is mechanically larger than one over 3, which inflated an apparent
+     interface effect on the complex-mate residual from +0.014 to +0.04 until a fixed subsampling cap
+     was imposed;
+   - in 3e, matching chains on their raw RCSB name, which calls symmetry copies `A-2` where SIFTS calls
+     them `A`. That would have silently dropped exactly the symmetry-generated partners that matter
+     most, such as a homodimer absent from the asymmetric unit;
+   - in 3f, a first estimate of aggregate reliability that simulated a protein's windows as i.i.d.
+     draws. That builds in the absence of a protein-level component, so it measures reliability *under
+     the null* rather than a ceiling. Replaced by an empirical split-half over each protein's own
+     windows with a Spearman-Brown correction;
+   - in 3f, a figure that chose its headline score by the largest |rho|. Selecting on effect size
+     reliably finds the noisiest feature: it picked `groove_recall_fhi`, the least reliable of the eight
+     (ceiling 0.321). Selection now runs on split-half reliability, which does not depend on the outcome.
 
-   Each was caught by a check before any number was reported.
+   Each was caught by a check before any number was reported. The last two are the instructive ones,
+   because neither would have crashed, and both would have produced a more interesting-looking result.
 
-# 9. Files
+7. **The discipline this campaign added: measure the probe, not only the sample.** Three of the four
+   structural tests are nulls, and a null is only as strong as the resolution of the instrument that
+   produced it. In 3f that resolution turned out to be poor -- a window's ipTM moves 0.140 between two
+   runs of identical input, against a between-window spread of 0.185, so half the score is run-to-run
+   noise and five of the eight per-protein aggregations are too noisy to interpret at all. The nulls in
+   3d and 3e do not carry that weakness: their features are deterministic functions of a fixed structure,
+   and their positive controls fire (burial separates Complex Portal members at 0.176 vs 0.090 and
+   tracks Meltome T~m~ at rho +0.170). Stating a null without its ceiling would have made all three look
+   equally conclusive, and they are not.
+
+8. **Three nulls in a row invite a fair objection**, which is that the wrong thing was tested each time
+   rather than that there is nothing there. The defence is specific rather than rhetorical: each tier
+   carried a positive control that fired (3d's composition control behaves as "already absorbed" rather
+   than as insensitive; 3e's burial control reproduces known complex biology; 3f's gate placed a
+   genuinely held-out peptide, from a structure released after the model was trained, to 1.27 Å with all
+   14 contacts in the experimental groove). An instrument that demonstrably works and still reports
+   nothing is reporting a null, not a failure. What remains genuinely untested is listed in section 9.
+
+# 9. What is left
+
+This campaign has run out of analysis that its own data support. Sequence predicts about a quarter of what
+these measurements reliably contain; the remainder is largely complex-level; and three independent attempts
+to say *what* the complex contributes have returned nothing. Listing what is genuinely outstanding is more
+useful at this point than proposing a fourth variant of the same test.
+
+**Blocked on information from the lab, not on analysis.** Five questions, carried from the GA_22/24 report
+and `additional_text_9`, each of which currently forces a caveat into a stated result:
+
+| | Question | What it unblocks |
+|---|---------------------------|-------------------------------|
+| 1 | Are the NADP 0.6 / 15 and NAD 11 / 300 values in µM? | The ligand dose-response curves are drawn without a unit on the x-axis |
+| 2 | Was **equal volume or equal protein amount** injected? | Whether the global fall in pull-down with salt is real, and whether the +1 log2 load at 43 °C is more captured protein or only a change in composition. This one affects two reports |
+| 3 | Was anything different about GA_22 BR5 at KCl 60 and GA_24 BR5 at KCl 120? | The two failed supernatant blocks are currently dropped without a reason |
+| 4 | Were the NAD 300 / KCl 120 reactions processed separately? | If not, the ribonucleoprotein effect needs a repeat before it is reported |
+| 5 | Can future runs randomise injection order across arms? | The cofactor arms were injected in blocks, so MS drift had to be *modelled* rather than designed out |
+
+**Needs a new experiment, not a new analysis.** Two are specified in full elsewhere and both follow from
+results this campaign considers solid:
+
+- **A drug dose series with an inactive analogue** (for example methotrexate against DHFR, or a selective
+  kinase inhibitor against its kinase). This tests whether the HSPB1 pull-down works as a target-engagement
+  assay. It follows from the strongest positive result in the whole programme: each ligand removes its own
+  binders from HSPB1 in a dose-graded way, at 46-54x for NADP enzymes, 26x for NAD enzymes and 13x for
+  kinases, across all salts, while the supernatant barely moves (`reports/screens/ga22_ga24_report.md`).
+- **A bait titration at 0.25, 1 and 4 times the usual bait**, to settle whether abundant clients saturate
+  the sites they use. Under saturation, more bait raises the capture of abundant clients more than that of
+  scarce ones; the competing explanations predict no change in slope (`additional_text_9`).
+
+The wet-lab proposals attached to the heat response -- a pull-down without bait at 35 and 43 °C, binding at
+39 and 41 °C, and melting temperatures measured in this lysate -- remain open and are listed in
+`reports/protein_response_report.md` section 8.
+
+**One optional computation.** 3f's null carries a caveat only because a single unseeded Boltz-2 draw has a
+test-retest reliability of 0.497. Averaging eight draws per window would raise that to about 0.89 by
+Spearman-Brown, and lift the per-protein ceilings with it -- by how much cannot be stated in advance,
+because the split-half figure also carries genuine window-to-window heterogeneity within a protein, which
+averaging over draws does not remove. The cost is
+seven further passes over 4,777 windows: about 28 GPU-hours on one card, or three and a half hours on a
+full eight-GPU node. It would buy rigour, not a new result -- P2, the test that real windows score no higher
+than their own scrambles, is paired across 4,577 windows and already well powered, so the finding that the
+score ignores sequence order will not move.
+
+**What is deliberately not proposed.** Scaling the co-fold pilot from 200 to 2,000 proteins, for the reason
+given in 3f: the limit is the score's insensitivity to sequence order, which sample size does not touch.
+Full-length co-folds (10-20x the cost on the same model that threaded a peptide backwards). And predicting
+the complex effect from the *sequences* of a protein's partners, which is close to circular -- the complex
+effect is defined as the part a sequence model misses, so a sequence model of the partners is being asked
+for exactly what sequence has already been shown not to carry.
+
+# 10. Files
 
 - **Code:**
   - `cm00_union.py`, `cm01_embed.py`, `cm01b_residues.py` (embeddings, SAE, per-residue states);
