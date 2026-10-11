@@ -1,5 +1,5 @@
 ---
-title: "One sequence model for every HSP pull-down: what ESMC-6B predicts, and what it does not"
+title: "What predicts the HSP pull-downs: sequence, structure, and the complex"
 date: "11 October 2026"
 geometry: margin=2.1cm
 fontsize: 10pt
@@ -22,9 +22,20 @@ header-includes:
 
 # Summary
 
-**The task.** One multi-task MLP on ESMC-6B protein embeddings (the 6-billion-parameter ESM3-family
-model) and its annotated sparse autoencoder (SAE). It predicts every non-drug quantity measured in the
-HSP pull-downs:
+**In one sentence.** About a quarter of what these pull-downs measure can be read off a protein's own
+amino acid sequence; most of the rest is not a property of the protein at all but of the complex it sits
+in, and that part turns out to be how the complex behaves in the lysate rather than anything about how it
+binds the chaperone.
+
+**The question.** A pull-down gives a number per protein: how much of it came down with the bait, and how
+that changed with salt, temperature or Mg^2+^. How much of that number is determined by the protein
+itself? Whatever is *not* determined by the protein is a pointer to what else is going on in the tube, so
+the leftover is as interesting as the part that is predicted. This report answers both halves, and spends
+most of its length on the leftover.
+
+**The approach.** A single neural network reads each protein's sequence -- via ESMC-6B, a 6-billion-parameter
+protein language model, and its annotated sparse autoencoder (SAE) -- and predicts every non-drug quantity
+measured across the HSP pull-downs at once:
 
 | Kind | Targets | Runs |
 |---------------|------------------|---------------------------|
@@ -51,11 +62,11 @@ protein is ever trained on. Each number is read against its own split-half ceili
 | Fold changes from sequence alone, no input information? | R2 0.12-0.27 per perturbation (rho 0.35-0.52), calibrated; top-10 % responders recovered 2.5-4x above chance; same accuracy as the full model (-0.002 [-0.007, +0.002]) |
 | What does sequence add beyond abundance? | Salt and Mg responses: +0.056 and +0.045 R² / ceiling over measured abundance and Tm alone |
 | Regressing out the baseline | Salt and Mg responses are almost untouched (83-99% of their variance remains). Heat is not: the baseline accounts for about half of the 43 °C response and half of what sequence predicts about it |
-| Is the plateau a ceiling on predictability? | No, a ceiling on *per-protein* information. The residual is strongly shared among members of the same complex (r 0.22-0.58, null ~0.00). One complex-mate term lifts mean R² / ceiling 0.309 → 0.410, far more than any architecture change |
+| Is the plateau a ceiling on predictability? | No, a ceiling on what a *single protein's* sequence can say. Subunits of the same complex miss the prediction together and in the same direction (r 0.22-0.58 between a protein's error and the mean error of its complex-mates; r ≈ 0.00 under permutation). Telling the model how a protein's complex-mates came out lifts mean R² / ceiling 0.309 → 0.410, far more than any architecture change |
 | Does AlphaFold structure help? | No. Surface vs buried ion pairs, charged surface patches, Debye-Huckel screening at the real ionic strengths and Mg^2+^ carboxylate clusters all add 0.000 over the embedding; the largest residual correlation of any structural feature is 0.092 |
 | Does the native partner's interface help? | No. Measured on 29,816 experimental assemblies covering 6,306 proteins: how much exposed hydrophobic and aggregation-prone surface a native partner buries adds +0.002 (salt and heat: −0.000). Three pre-stated directional predictions all fail |
 | Does a *predicted* chaperone-client interface help? | No, and the measurement is half noise. 4,787 Boltz-2 co-folds of the HSPB1 ACD dimer with tiled 16-mer client windows: all four pre-stated predictions fail, including real windows versus their own scrambles (-0.026, p = 0.955). The same window re-run moves by 0.140 ipTM, so half the window score is run-to-run noise |
-| What *is* the complex effect, then? | Not a capture nonlinearity: complex sharing is **highest in the supernatant, which never passes through the pull-down** (0.55-0.61 vs 0.38-0.40), and a flexible abundance control moves the mean only 0.336 to 0.304. About a third is co-abundance that 3c's linear control missed (0.336 to 0.214 on abundance-discordant partners). Most of the rest is how the complex behaves in the lysate before any bait is added. Co-capture is suggestive, unproven (3 of 4 targets) |
+| What *is* the complex effect, then? | Mostly not the pull-down. Run the same correlation on the unbound supernatant, on the pull-down, and on their ratio: **0.55-0.61, 0.38-0.40, 0.26-0.31** -- highest where the beads were never involved. Complex members already behave alike in the lysate. About a third is simply that they are present at similar amounts (a correction to 3c). Only 0.20-0.23 could be about binding; co-capture is the leading guess, supported in 3 of 4 targets |
 | What the SAE features say | Pull-down and abundance: structured enzymes up, phosphorylated disordered Ser/Thr-rich regions down. Abundance-free binding, salt and Mg: membrane-helix features. Heat: structured α/β enzyme cores |
 
 **The bottom line.** Sequence predicts about a quarter of what these measurements reliably contain, and
@@ -76,19 +87,76 @@ structural approaches now land in the same narrow band just above nothing (large
 no-perturbation pull-down is mostly abundance and stability. The salt and Mg responses are where
 sequence carries information that the measured lysate properties do not.
 
-Section 3g then identifies what that complex effect is, and most of it turns out not to be about the
-chaperone at all. The sharing is **largest in the supernatant, a measurement that never passes through the
-pull-down**, and it falls at every subsequent stage: free pool 0.55-0.61, pull-down 0.38-0.40, partition
-0.26-0.31, with every difference interval excluding zero and the gradient steepening when each target is
-divided by its own reliability. A capture nonlinearity would have produced the opposite ordering. About a
-third of the effect is co-abundance that 3c's linear control failed to remove -- a correction to 3c made
-here -- and most of the remainder is how a complex behaves in the lysate before any bait is added, which
-the pull-down inherits in damped form. Only the ~0.20-0.23 that survives dividing the lysate out is a
-candidate for chaperone biology, which is also why three sections looking for an interface property found
-nothing: an interface could only ever have explained the smallest of the four components.
+Section 3g then asks what that complex effect is, and most of it turns out not to be about the chaperone
+at all. The key is that GA_22 and GA_24 measure every protein three times in the same reaction: in the
+**supernatant** (what stayed unbound, which never touches the beads), in the **pull-down** (what bound),
+and as the **partition**, their ratio. Running the complex-mate correlation separately on each of the
+three asks at which point in the protocol the subunits of a complex start behaving alike.
+
+They already behave alike before the bait is involved. The correlation is **0.55-0.61 in the supernatant,
+0.38-0.40 in the pull-down made from it, and 0.26-0.31 in the ratio** -- highest where there is no
+pull-down at all, and falling at every stage after. Every difference interval excludes zero, and the
+gradient steepens when each measurement is divided by its own reliability. Had the correlation been
+manufactured by the pull-down -- for instance by its non-proportional capture, which is the obvious
+suspect -- the order would have run the other way.
+
+So most of what sequence misses is not chaperone biology. About a third of it is simply that complex
+members are present at similar amounts, which 3c wrongly dismissed and which is corrected here. Most of
+the remainder is that the members of a complex go into and out of solution together in the lysate, before
+any bait is added; the pull-down then inherits a damped copy of that. Only the 0.20-0.23 that survives
+dividing the lysate out could be about binding at all. That is also why three sections hunting an
+interface property found nothing: an interface could only ever have explained the smallest of the four
+parts.
 
 **Status.** This is the final version of the campaign report. Every analysis these data support has been
 run. What remains is five questions for the lab and two proposed experiments, set out in section 9.
+
+# How to read this report
+
+Six terms carry most of the argument. They are defined here rather than where they first appear, because
+every later section uses all of them.
+
+**Target.** One measured quantity, for every protein at once. For example, *how much of each protein HSPB1
+pulled down with no KCl added* is one target; *how much that changed at 120 mM KCl* is another. There are
+33, drawn from six experiments.
+
+**Fold, and "out-of-fold".** Proteins are split into five blocks, grouped so that no protein in one block
+shares more than 30 % sequence identity with any protein in another. Each block is predicted by a model
+trained only on the other four. So every number quoted for a protein comes from a model that saw neither
+that protein nor any of its close relatives. This matters: without it a model can score well simply by
+recognising a family it has already been shown.
+
+**Ceiling.** How well the experiment agrees with itself: split the replicates into two halves, compute each
+protein's value from each half, and correlate the halves across proteins. Nothing can be predicted better
+than the measurement reproduces, so this is the bar. Accuracy is reported as **R² / ceiling**, where 1.0
+would mean "as accurate as repeating the experiment" and 0.27 means "about a quarter of the way there".
+
+**Residual.** Measured minus predicted, for one protein and one target. It is the part of the measurement
+that the protein's sequence did not account for. The whole second half of this report is about what the
+residuals contain.
+
+**Complex-mate.** Another protein annotated as a subunit of the same assembly in Complex Portal, a curated
+catalogue of stable protein complexes. Of the 11,570 measured proteins, 2,858 have at least one measured
+complex-mate.
+
+**The complex effect** (used throughout; the statistic behind it is the *complex-mate correlation*). Take
+one protein and compute its residual. Separately, take the other subunits of its complex and average
+*their* residuals. The complex effect is the correlation between those two numbers, taken across proteins.
+
+> If it were zero, the model's errors would be independent from protein to protein: knowing that the other
+> proteasome subunits came out higher than predicted would tell you nothing about this subunit. It is not
+> zero. Across the 33 targets it averages **r = 0.34**, and for some measurements reaches 0.6. In plain
+> terms: **subunits of the same complex miss the prediction together, and in the same direction.** If the
+> rest of your assembly came out well above what sequence predicted, so did you.
+
+This cannot be the model recognising protein families, because subunits of one complex are not sequence
+relatives — they land in different blocks and are never fitted together. A permutation that shuffles
+residuals within a block, preserving every complex's size, puts the null at r ≈ 0.00.
+
+Why it matters: the complex effect measures how much of a pull-down measurement is a property of the
+**assembly** a protein belongs to rather than of the **molecule itself** — and therefore how much of it no
+sequence model, however good, can ever reach. Sections 3c to 3g are about how large that is, and what it
+turns out to be.
 
 # 1. Data, targets and features
 
@@ -259,18 +327,26 @@ land within 0.274-0.276 of ceiling. A plateau can mean the representation is exh
 variance is not a function of the protein's sequence at all. The second possibility is testable (`cm12`).
 
 A pull-down measures a protein that may be held in a multi-subunit assembly, so its level, and its response to a
-perturbation, can be a property of the assembly. Sequence cannot reach that. The design makes the test clean: the
-outer folds are grouped by MMseqs2 30 % identity and the subunits of a complex are unrelated in sequence, so
-complex-mates scatter across folds and no complex-level effect is learnable from sequence by construction. Any such
-effect therefore lands entirely in the residual.
+perturbation, can be a property of the assembly rather than of the molecule. No model that reads one protein's
+sequence can reach that.
 
-For every target, each protein's residual (measured minus out-of-fold prediction) is correlated with the mean
-residual of its other Complex Portal complex-mates, taken **within the same outer fold** so that both sides are
-held out of the same model. The null is not zero -- residuals share abundance and other structure -- so it is
-obtained by shuffling residuals within fold, 500 draws, which preserves every complex's size and each protein's
-fold while destroying the pairing.
+**The test, in words.** Take a protein and ask by how much the measurement exceeded or fell short of what the
+model predicted from its sequence: its *residual*. Separately, take the other subunits of the same Complex Portal
+assembly and average *their* residuals. Then ask, across proteins, whether the two agree. If they do, proteins in
+the same complex are being mispredicted together, which means the missing information is a property of the
+assembly. This correlation is what the report calls the **complex effect**.
 
-![Left: how much of the measured value, and of the residual, is shared with complex-mates, against the permutation null (black dashes). Right: two examples.](../figures/campaign/complex_residual.png){width=100%}
+Two features of the design make it interpretable. The blocks used for prediction are separated at 30 % sequence
+identity, and subunits of one complex are not sequence relatives, so complex-mates fall in different blocks and
+are never fitted together -- a complex-level effect is unlearnable from sequence by construction, and therefore
+lands entirely in the residual. And a protein's partners are taken **from its own block**, so both sides of the
+correlation are held out of the same model.
+
+The null is not zero, because residuals share abundance and other structure, so it is obtained by shuffling
+residuals within a block, 500 draws, which preserves every complex's size and each protein's block while
+destroying the pairing. It comes out at r ≈ 0.00.
+
+![How much a protein's measured value, and its residual, agree with the mean of its complex-mates, against the permutation null (black dashes). Right: two worked examples, one point per protein.](../figures/campaign/complex_residual.png){width=100%}
 
 | Target kind | n | Residual r | Null | R2/ceil. | + complex | Gain |
 |-------------|---|------------|------|----------|-----------|------|
@@ -285,8 +361,9 @@ fold while destroying the pairing.
 Scored on the 2,858 proteins that are in a Complex Portal complex with at least two measured members; "+ complex"
 adds one cross-fitted term, the complex-mate mean residual, with its coefficient fitted on the other outer folds.
 
-* **The residual is strongly complex-structured for every target**: r 0.22-0.58 against a null of ~0.00,
-  z = 6.3-16.9. The effect is largest where the sequence model is weakest.
+* **It happens for every target**: r 0.22-0.58 against a null of ~0.00, z = 6.3-16.9. Concretely, if the other
+  measured subunits of a protein's complex came out above what sequence predicted, that protein usually did too,
+  and by a related amount. The effect is largest where the sequence model is weakest.
 * **It is worth more than everything architecture gave**: mean R2 / ceiling rises 0.309 to 0.410. On the salt
   responses it roughly doubles R2 (GA_22 KCl 60: 0.19 to 0.37; GA_24 KCl 60: 0.17 to 0.35), and on heat at 43 C it
   rises from 0.22-0.24 to 0.31-0.35. For comparison, the entire MLP-over-ridge gain is +0.028.
@@ -318,7 +395,7 @@ specificity (`cm16`, same training-fold-only design).
 | STRING physical >= 700 | 7,341 | 6 | 0.145 | 0.286 | 0.306 | +0.019 |
 | STRING physical >= 400 | 10,165 | 12 | 0.085 | 0.280 | 0.287 | +0.007 |
 
-![Residual sharing by graph. Left: per target, the four graphs ordered by coverage. Right: R2 / ceiling with the partner term against sequence alone; points above the diagonal are gains.](../figures/campaign/network_residual.png){width=100%}
+![The complex-mate correlation computed on four interaction graphs. Left: per target, ordered by coverage. Right: R2 / ceiling with the partner term against sequence alone; points above the diagonal are gains.](../figures/campaign/network_residual.png){width=100%}
 
 The effect is **specific to curated stable complexes and decays fast as the graph widens**. STRING reaches 10,165
 of 11,570 proteins, but at that coverage a protein's partner mean is an average over a dozen loose associations
@@ -329,11 +406,11 @@ three quarters, and the honest summary of the campaign-wide number is that 0.41 
 The conclusion for the campaign is that the ~0.27 plateau is the ceiling on *per-protein* sequence information,
 not on predictability. Interaction context is a larger lever than any change to the network.
 
-**What that context is, this section does not say**, and the three sections that follow were written to find out.
+**What makes complex-mates behave alike, this section does not say**, and the four sections that follow were
+written to find out.
 Each takes one mechanistic reading of "complex membership" and tests it directly: the client's own folded surface
 (3d), the surface a native partner buries (3e), and the chaperone's own predicted binding interface (3f). All
-three return nothing. The complex effect is therefore established as real and reproducible, and remains
-unattributed at the end of this campaign -- a result worth stating plainly rather than leaving implicit.
+three return nothing; 3g then finds the answer outside structure altogether.
 
 # 3d. Structure, tested directly: it adds nothing
 
@@ -664,20 +741,34 @@ allows.](../figures/campaign/pilot.png)
 cause open. Sections 3d-3f tested three structural readings of that and found nothing. This section tests
 three non-structural readings, and it is the one that identifies the effect.
 
-The question came from a specific objection. Capture in these pull-downs is demonstrably nonlinear:
-pull-down level grows as input^0.35 (`ad15`), so IP efficiency falls as input^-0.65. A protein's position
-on that curve is set by its abundance, complex members are co-abundant, and shared position on a nonlinear
-curve would produce exactly the correlation 3c reports with no chaperone biology in it at all. 3c's
-abundance control was a **linear** projection of log abundance, which is not obviously sufficient against a
-nonlinear mechanism. `cm26` tests it four ways.
+The question came from a specific objection, and it is worth stating carefully because it would, if true,
+dissolve the whole of 3c.
+
+Capture in these pull-downs is not proportional. A protein ten times more abundant in the lysate comes out
+only about 2.2 times more abundant in the pull-down: the level grows as input^0.35 (`ad15`), so the
+fraction of a protein that gets captured *falls* as there is more of it. Where a protein sits on that curve
+is set by how abundant it is. Subunits of a complex are present at similar amounts, so they sit at similar
+points on the curve, so they would be distorted by capture in similar ways -- and their residuals would
+correlate for that reason alone, with nothing about chaperones in it. 3c's defence against this was a
+**linear** projection of log abundance, which is not obviously adequate against a nonlinear mechanism.
+
+`cm26` tests four candidate explanations: that the capture curve manufactures it; that it is shared
+abundance; that it is how complexes behave in the lysate; and that complexes are pulled down as units.
 
 ## The measurement stage settles the nonlinearity question
 
-The decisive comparison was already in the data and had not been read. GA_22 and GA_24 measure the same
-proteins, in the same reaction, under the same salt perturbation, at three stages: the **supernatant**, the
-unbound pool, which never passes through capture; the **pull-down**, which does; and the **partition**,
-their ratio, in which the lysate level is divided out experimentally. A capture nonlinearity predicts more
-complex sharing in the captured measurement. The ordering runs the other way, on an identical protein set:
+The decisive comparison was already in the data and had not been read.
+
+In GA_22 and GA_24, every protein is quantified three times from the same reaction. The **supernatant** is
+what was left unbound; it is essentially the lysate, and it never passes over the beads, so no property of
+capture can touch it. The **pull-down** is what bound, and does pass through capture. The **partition** is
+their ratio, in which how much protein was present is divided out experimentally, leaving something closer
+to how tightly it bound.
+
+Running the complex-mate correlation separately on each of the three asks *at which point in the protocol*
+the subunits of a complex begin to behave alike. If the capture curve were responsible, the correlation
+would be small in the supernatant and appear in the pull-down. It is the other way round, on an identical
+set of proteins:
 
 | Run, perturbation | n | supernatant | pull-down | partition | sup − ip | ip − part |
 |-------------|-----|------|------|------|---------------|---------------|
@@ -706,8 +797,9 @@ target's reliability makes the gradient steeper, not shallower:
 | GA_24, KCl 120 | 0.636 | 0.392 | 0.274 |
 | GA_22/GA_24, baseline | 0.342 / 0.354 | 0.313 / 0.285 | 0.261 / 0.252 |
 
-The free pool carries roughly **twice** the complex-level structure of the pull-down made from it.
-Passing through capture *reduces* complex sharing rather than creating it.
+The unbound pool shows roughly **twice** as much complex-mate agreement as the pull-down made from it.
+Passing a sample over the beads *reduces* the tendency of complex members to move together; it does not
+create it. Whatever makes subunits of a complex behave alike is already present in the lysate.
 
 ## A nonlinear abundance control removes almost nothing
 
@@ -737,8 +829,8 @@ each protein's partner mean using only complex-mates in a *different* abundance 
 | **different abundance quintile** | **0.214** |
 
 The method's positive control fires exactly as it must. `GA33_input` *is* the lysate abundance, so its
-complex sharing has to be pure co-abundance, and on abundance-discordant partners it falls from 0.239 to
-**−0.029**. A test that drives a known-abundance target to zero while leaving the others at 0.21 is
+its complex-mate correlation has to be pure co-abundance, and when partners are drawn from a different
+abundance quintile it falls from 0.239 to **−0.029**. A test that drives a known-abundance target to zero while leaving the others at 0.21 is
 discriminating, not insensitive.
 
 So the claim in 3c that the effect "is not abundance" rested on a control too weak to support it.
@@ -780,10 +872,10 @@ happen.
 
 | Explanation of the complex effect | Verdict |
 |------------------------------|-------------------------------------------|
-| **Nonlinear capture** (shared position on the input^0.35 curve) | **Rejected.** Sharing is highest where there is no capture at all, and a flexible abundance control moves the mean only 0.336 → 0.304 |
-| **Co-abundance** | **Partly true, about a third.** 3c's linear control was too weak; the effect falls 0.336 → 0.214 on abundance-discordant partners |
-| **Co-behaviour in the lysate** (shared solubility, shared response of the free pool) | **The largest single part.** Complex-mates' supernatant salt responses share at 0.55-0.61, roughly twice the pull-down's once reliability is accounted for |
-| **Stoichiometric co-capture** | **Suggestive, unproven.** The predicted asymmetry appears in 3 of 4 targets, with 1 interval excluding zero |
+| **Nonlinear capture** (complex-mates sit at similar points on the input^0.35 curve) | **Rejected.** The correlation is highest in the one measurement that never passes over the beads, and a flexible abundance control moves the mean only 0.336 → 0.304 |
+| **Co-abundance** (complex-mates are simply present at similar amounts) | **Partly true, about a third.** 3c's linear control was too weak; the correlation falls 0.336 → 0.214 when partners are drawn from a different abundance quintile |
+| **Co-behaviour in the lysate** (members go into and out of solution together, before any bait) | **The largest single part.** In the unbound supernatant the complex-mate correlation reaches 0.55-0.61, roughly twice the pull-down's once reliability is accounted for |
+| **Stoichiometric co-capture** (pull one subunit, the assembly follows) | **Suggestive, unproven.** The predicted asymmetry appears in 3 of 4 targets, with 1 interval excluding zero |
 
 The complex effect is not one thing. A third is co-abundance that 3c failed to remove. Most of the rest,
 for the salt responses at least, is how the complex behaves in the lysate before any bait is added --
@@ -796,8 +888,8 @@ an interface property could only ever have accounted for the smallest of these f
 reading of the campaign is not that the complex effect is mysterious, but that most of it was never about
 the chaperone.
 
-![What the complex effect is made of. **A**: complex-level sharing of the residual at three measurement
-stages of the same reaction -- the supernatant never passes through capture, the pull-down does, the
+![What the complex effect is made of. **A**: the complex-mate correlation at three stages of the same
+reaction -- the supernatant never passes through capture, the pull-down does, the
 partition divides the lysate out; black dashes are the same values divided by each target's own
 reliability, which steepens the gradient because the supernatant targets are the noisiest.
 **B**: replacing 3c's linear abundance control with decile indicators and their interactions.
@@ -971,7 +1063,8 @@ candidates, not a substitute for measurement.
 
 1. **One protein-level representation.** ESMC-6B mean-pooled states carry about a quarter of the
    reliable variance, and nothing tried here moved that -- not 94 architectures, not attention over
-   7.4 M residue states, not multi-task sharing, and not any of the three structural tiers (3d, 3e, 3f).
+   7.4 M residue states, not sharing one trunk across targets, and not any of the three structural tiers
+   (3d, 3e, 3f).
    The rest is either not in the sequence (lysate
    state, complex membership, post-translational state, local concentration) or not in this
    representation. The measured covariates show the first is substantial for baselines.
@@ -1035,7 +1128,8 @@ candidates, not a substitute for measurement.
 # 9. What is left
 
 This campaign has run out of analysis that its own data support. Sequence predicts about a quarter of what
-these measurements reliably contain; the remainder is largely complex-level; and three structural attempts
+these measurements reliably contain; most of the remainder is a property of the complex rather than of the
+protein; three structural attempts
 to say *what* the complex contributes returned nothing, and 3g then showed why -- most of that effect is a
 property of the lysate rather than of the chaperone interface. The one piece that could still be chaperone
 biology, the ~0.20-0.23 surviving in the partition targets, has a leading candidate (stoichiometric
