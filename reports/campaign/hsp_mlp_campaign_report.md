@@ -829,9 +829,20 @@ each protein's partner mean using only complex-mates in a *different* abundance 
 | **different abundance quintile** | **0.214** |
 
 The method's positive control fires exactly as it must. `GA33_input` *is* the lysate abundance, so its
-its complex-mate correlation has to be pure co-abundance, and when partners are drawn from a different
+complex-mate correlation has to be pure co-abundance, and when partners are drawn from a different
 abundance quintile it falls from 0.239 to **−0.029**. A test that drives a known-abundance target to zero while leaving the others at 0.21 is
 discriminating, not insensitive.
+
+That control is weaker in one specific way than it first appears, and the same caveat touches two other
+targets. The abundance covariate here is the measured `GA33_input` level. Three of the 33 targets share a
+measurement with it: `GA33_input` itself, and the two enrichments `GA33_A1_enrich` and `GA33_B11_enrich`,
+which are defined as pull-down minus input. For those three, residual and covariate carry the same
+measurement noise, so the discordant-partner test is pulled down by shared noise as well as by genuine
+co-abundance, and it cannot separate the two. Dropping all three leaves 30 targets whose abundance
+covariate comes from an independent run, and the table above becomes 0.342 / 0.404 / **0.225** — the same
+conclusion, and the fraction surviving is 66 % rather than 64 %. The positive control still shows the test
+is not insensitive; it does not, on its own, show the collapse is co-abundance rather than shared noise.
+The 30-target recomputation is what carries that.
 
 So the claim in 3c that the effect "is not abundance" rested on a control too weak to support it.
 **About a third of the complex effect is co-abundance** that the linear projection did not remove. The
@@ -1093,6 +1104,12 @@ candidates, not a substitute for measurement.
      draws. That builds in the absence of a protein-level component, so it measures reliability *under
      the null* rather than a ceiling. Replaced by an empirical split-half over each protein's own
      windows with a Spearman-Brown correction;
+   - in 3g, an abundance covariate that can be a copy of the target. Three of the 33 targets share a
+     measurement with `GA33_input`, so their abundance control strips shared measurement noise rather than
+     abundance. Recomputing on the 30 independent targets moves the discordant-partner mean 0.214 to 0.225
+     and changes nothing, but the defect is real and it bit harder in the reusable pipeline, where a study
+     with no pre-IP lysate falls back to the supernatant and then six of nine targets are self-referential.
+     That is guarded now: such targets are rerun against PaxDb, or excluded and named;
    - in 3c, concluding "it is not abundance" from a linear projection of log abundance. A projection
      removes a protein's own abundance but leaves what its partners carry, so it is the wrong test; the
      right one restricts partners to a different abundance quintile, and it shows about a third of the

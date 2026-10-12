@@ -156,6 +156,14 @@ prediction together and in the same direction.
   abundance quintile. A large drop means co-abundance. In the campaign this was the test that mattered: a
   linear projection said "not abundance" and was wrong by about a third.
 
+**The abundance covariate must not be a copy of the target.** Without an `input` fraction the pipeline takes
+abundance from the supernatant, and then for a `sup_*` target — or a `part_*` target, since `part = ip - sup`
+— the residual and the covariate carry the same measurement noise. Projecting it out strips shared noise from
+both sides and the control reads "co-abundance" when it is not. Those targets are rerun against PaxDb, which
+is an independent measurement, and the log marks them `[vs PaxDb: ...]`; with no PaxDb they are excluded from
+the mean and the log says so. The campaign was never exposed to this — its `abundance_here` is `GA33_input`,
+a separate pre-IP lysate — but a study with only `ip` and `sup` is.
+
 ---
 
 ## 6. Troubleshooting

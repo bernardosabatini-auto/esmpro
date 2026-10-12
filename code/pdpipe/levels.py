@@ -557,26 +557,73 @@ def level_decompose(cfg, caps, out, state):
                   "small one means the bait does.")
 
     # ---- 2. abundance: flexible control, and abundance-discordant partners
-    ab = None
+    # The covariate must not be a copy of the target. If the abundance source is the same fraction as the
+    # target -- or a component of it, since part = ip - sup, enrich = ip - input, spec = ip - mock -- then
+    # the residual and the covariate carry the same measurement noise. Projecting it out then strips shared
+    # noise from both the residual and the partner mean, and the control reads "it is co-abundance" when it
+    # is not. Those targets are rerun against PaxDb, which is an independent measurement, and are dropped
+    # from the mean when PaxDb is unavailable rather than quietly contributing a biased number.
+    COMPONENTS = {"part": ("ip", "sup"), "enrich": ("ip", "input"), "spec": ("ip", "mock")}
+
+    def _self_ref(t, src):
+        f = t.split("_", 1)[0]
+        if src is None or src == "paxdb":
+            return None
+        if f == src:
+            return f"the target IS the abundance source ({src}_base)"
+        if src in COMPONENTS.get(f, ()):
+            return f"{f} is derived from {src}, so it carries the abundance source's noise"
+        return None
+
+    ab, ab_src = None, None
     for key in ("input", "sup"):
         if f"{key}_base" in names:
-            ab = Y[:, names.index(f"{key}_base")]; break
-    if ab is None and os.path.exists(f"{CAMP}/named_properties.tsv"):
-        ab = pd.read_csv(f"{CAMP}/named_properties.tsv", sep="\t", index_col=0).reindex(U)["abundance_paxdb"].values.astype(float)
-    if ab is not None and np.isfinite(ab).sum() > 200:
-        D = _deciles(ab)
-        FLEX = np.column_stack([D, np.ones(n)])
-        LIN = np.column_stack([np.where(np.isfinite(ab), ab, 0.0), np.isfinite(ab).astype(float), np.ones(n)])
-        qn = np.full(n, -1); ok = np.isfinite(ab)
+            ab, ab_src = Y[:, names.index(f"{key}_base")], key
+            break
+    ab_pax = None
+    if os.path.exists(f"{CAMP}/named_properties.tsv"):
+        _p = pd.read_csv(f"{CAMP}/named_properties.tsv", sep="\t", index_col=0).reindex(U)
+        if "abundance_paxdb" in _p:
+            ab_pax = _p["abundance_paxdb"].values.astype(float)
+    if ab is None:
+        ab, ab_src = ab_pax, "paxdb"
+
+    def _ab_blocks(a):
+        """Linear and decile design blocks, and the different-quintile adjacency, for one covariate."""
+        FLEX = np.column_stack([_deciles(a), np.ones(n)])
+        LIN = np.column_stack([np.where(np.isfinite(a), a, 0.0), np.isfinite(a).astype(float), np.ones(n)])
+        qn = np.full(n, -1); ok = np.isfinite(a)
         if ok.sum() > 5:
-            e = np.quantile(ab[ok], [.2, .4, .6, .8]); qn[ok] = np.digitize(ab[ok], e)
-        diff_adj = pairs & ~(qn[:, None] == qn[None, :]) & (qn[:, None] >= 0) & (qn[None, :] >= 0)
+            e = np.quantile(a[ok], [.2, .4, .6, .8]); qn[ok] = np.digitize(a[ok], e)
+        dadj = pairs & ~(qn[:, None] == qn[None, :]) & (qn[:, None] >= 0) & (qn[None, :] >= 0)
+        return LIN, FLEX, dadj
+
+    if ab is not None and np.isfinite(ab).sum() > 200:
+        BLK = {ab_src: _ab_blocks(ab)}
+        if ab_pax is not None and np.isfinite(ab_pax).sum() > 200 and "paxdb" not in BLK:
+            BLK["paxdb"] = _ab_blocks(ab_pax)
+        print(f"  abundance covariate: {ab_src}"
+              + ("" if "paxdb" not in BLK or ab_src == "paxdb"
+                 else "  (PaxDb held in reserve for self-referential targets)"), flush=True)
+        J["abundance_source"] = ab_src
         J["abundance"] = {}
         for t in names:
             res, k = resid(t)
             if k.sum() < 150:
                 continue
-            row = {}
+            why, src = _self_ref(t, ab_src), ab_src
+            if why is not None:
+                if "paxdb" in BLK:
+                    src = "paxdb"
+                else:
+                    J["abundance"][t] = dict(raw=float("nan"), self_referential=why, excluded=True)
+                    print(f"  {t:<24} EXCLUDED from the abundance control: {why}; no independent "
+                          f"covariate available", flush=True)
+                    continue
+            LIN, FLEX, diff_adj = BLK[src]
+            row = {"covariate": src}
+            if why is not None:
+                row["self_referential_against_default"] = why
             for lab, X in (("raw", None), ("linear", LIN), ("flexible", FLEX)):
                 v = res if X is None else project_out(res, k, X)
                 B = fold_blocks(pairs, k, outer, n)
@@ -592,20 +639,27 @@ def level_decompose(cfg, caps, out, state):
                 if qd.sum() >= 50:
                     row["diff_quintile"] = float(np.corrcoef(res[qd], pmd[qd])[0, 1])
                     row["n_diff"] = int(qd.sum())
-            if row:
+            if len(row) > 1:
                 J["abundance"][t] = row
+                mark = "" if why is None else f"  [vs PaxDb: {t.split('_', 1)[0]} shares {ab_src}]"
                 print(f"  {t:<24} raw {row.get('raw', np.nan):+.3f}  linear {row.get('linear', np.nan):+.3f}  "
                       f"flexible {row.get('flexible', np.nan):+.3f}  diff-quintile "
-                      f"{row.get('diff_quintile', np.nan):+.3f}", flush=True)
-        A = J["abundance"]
+                      f"{row.get('diff_quintile', np.nan):+.3f}{mark}", flush=True)
+        A = {t: r for t, r in J["abundance"].items() if not r.get("excluded")}
         if A:
             def mn(key):
                 v = [r[key] for r in A.values() if key in r and np.isfinite(r[key])]
                 return float(np.mean(v)) if v else np.nan
             J["abundance_mean"] = {k: mn(k) for k in ("raw", "linear", "flexible", "diff_quintile")}
-            print(f"\n  MEAN  raw {J['abundance_mean']['raw']:.3f}  linear {J['abundance_mean']['linear']:.3f}  "
+            J["abundance_mean"]["n_targets"] = len(A)
+            J["abundance_mean"]["n_excluded"] = len(J["abundance"]) - len(A)
+            print(f"\n  MEAN over {len(A)} targets  raw {J['abundance_mean']['raw']:.3f}  "
+                  f"linear {J['abundance_mean']['linear']:.3f}  "
                   f"flexible {J['abundance_mean']['flexible']:.3f}  "
                   f"diff-quintile {J['abundance_mean']['diff_quintile']:.3f}", flush=True)
+            if J["abundance_mean"]["n_excluded"]:
+                print(f"  ({J['abundance_mean']['n_excluded']} target(s) excluded as self-referential.)",
+                      flush=True)
             print("  (campaign: 0.336 / 0.326 / 0.304 / 0.214 -- a large drop at diff-quintile means the "
                   "effect is co-abundance.)", flush=True)
     json.dump(J, open(f"{out}/decompose.json", "w"), indent=1, default=float)
