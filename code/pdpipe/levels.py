@@ -253,8 +253,11 @@ def level_folds(cfg, caps, out, state):
         for a in np.array(U)[have.values]:
             fh.write(f">{a}\n{seq[a]}\n")
     mm = os.environ.get("MMSEQS_BIN", "mmseqs")
+    # MMseqs2 sizes its thread pool from the cores it can SEE, not the cores the cgroup allows, so under
+    # Slurm it starts 128 threads inside a 15-core allocation. Hand it the allocation instead.
+    nthr = os.environ.get("SLURM_CPUS_PER_TASK") or os.environ.get("OMP_NUM_THREADS") or ""
     cmd = [mm, "easy-cluster", fa, f"{tmp}/clu", f"{tmp}/tmp", "--min-seq-id", "0.3", "-c", "0.5",
-           "--cov-mode", "1", "-v", "1"]
+           "--cov-mode", "1", "-v", "1"] + (["--threads", nthr] if nthr.isdigit() else [])
     try:
         subprocess.run(cmd, check=True, capture_output=True)
         rep = pd.read_csv(f"{tmp}/clu_cluster.tsv", sep="\t", header=None, names=["rep", "member"])

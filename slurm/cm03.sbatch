@@ -3,14 +3,20 @@
 #SBATCH -A kempner_bsabatini_lab
 #SBATCH -p kempner_rtx
 #SBATCH --gres=gpu:1
-#SBATCH -c 8
-#SBATCH --mem=64G
+#SBATCH -c 2
+#SBATCH --mem=16G
 #SBATCH -t 0-08:00
 #SBATCH -o logs/cm03_%j.log
 #SBATCH -e logs/cm03_%j.log
 # Campaign MLP population training (code/cm03_mlp.py). One RTX card: data ~1 GB + a vectorised population of
 # small MLPs; H100/H200 memory would sit idle. GPU utilisation is sampled every 30 s into the log.
 set -u
+# Pin the maths libraries to the allocation. BLAS/OMP otherwise size their pools from the cores they can
+# SEE (128 on this node), not the cores the cgroup allows, and oversubscribe every solve.
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
+export MKL_NUM_THREADS=$OMP_NUM_THREADS
+export OPENBLAS_NUM_THREADS=$OMP_NUM_THREADS
+export NUMEXPR_NUM_THREADS=$OMP_NUM_THREADS
 export ESM_PROAE_ROOT=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae
 cd $ESM_PROAE_ROOT
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader

@@ -16,9 +16,15 @@ python -m pdpipe.study --list                     # the levels, their costs and 
 On the cluster, where the CPU account cannot submit at all:
 
 ```bash
-sbatch slurm/study.sbatch mynew
-sbatch slurm/study.sbatch mynew --levels targets,complex
+sbatch slurm/study.sbatch mynew                                     # full run: 15 cores is right
+sbatch -c 2 --mem 16G slurm/study.sbatch mynew --levels targets,complex   # subset: ask for less
 ```
+
+The script's 15 cores are sized for `predict`, the one level with real CPU parallelism — the ridge
+eigendecomposes a 5,120 x 5,120 Gram per target per fold and a full run measures 87 % CPU efficiency.
+Every other level is serial and a subset run measures 11 %, which is what the cluster's Job Defense Shield
+reports on. Command-line flags beat the script's `#SBATCH` directives, so trim them when you run a subset.
+GA_22 peaked at 1.6 GB of memory; the 48 GB default is headroom for a larger study, not a measurement.
 
 ---
 

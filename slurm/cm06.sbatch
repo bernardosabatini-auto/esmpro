@@ -3,14 +3,20 @@
 #SBATCH -A kempner_bsabatini_lab
 #SBATCH -p kempner_rtx
 #SBATCH --gres=gpu:1
-#SBATCH -c 8
-#SBATCH --mem=96G
+#SBATCH -c 2
+#SBATCH --mem=24G
 #SBATCH -t 0-08:00
 #SBATCH -o logs/cm06_%j.log
 #SBATCH -e logs/cm06_%j.log
 # Campaign attention-pooling MLP (code/cm06_attn.py): 37 GB of per-residue states on one 96 GB RTX card.
 # small MLPs; H100/H200 memory would sit idle. GPU utilisation is sampled every 30 s into the log.
 set -u
+# Pin the maths libraries to the allocation. BLAS/OMP otherwise size their pools from the cores they can
+# SEE (128 on this node), not the cores the cgroup allows, and oversubscribe every solve.
+export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}
+export MKL_NUM_THREADS=$OMP_NUM_THREADS
+export OPENBLAS_NUM_THREADS=$OMP_NUM_THREADS
+export NUMEXPR_NUM_THREADS=$OMP_NUM_THREADS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export ESM_PROAE_ROOT=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae
 cd $ESM_PROAE_ROOT
