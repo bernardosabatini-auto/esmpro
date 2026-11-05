@@ -4,7 +4,7 @@ Every pull-down run in this project, written out with the preprocessing already 
 format, plus the 33 derived quantities the campaign modelled.
 
 Regenerate with `python code/export_tables.py`. Nothing here is hand-edited. The whole set is also at
-`data/export.tar.gz` (17 MB) — `netscratch` is purged on a retention window, so copy that somewhere
+`data/export.tar.gz` (21 MB) — `netscratch` is purged on a retention window, so copy that somewhere
 permanent rather than the directory.
 
 ---
@@ -14,6 +14,11 @@ permanent rather than the directory.
 ```
 data/export/
   README.md              this file
+  docs/                  the written-up project, travelling with the data:
+                           HSP_PULLDOWNS_OVERVIEW.{md,pdf}   dataset, goals, methods, where to pick it up
+                           hsp_mlp_campaign_report.{md,pdf}  the full 31-page campaign report
+                           DATA_EXPORT.{md,pdf}              this document
+                           PIPELINE.md                       running the analysis on a new lysate
   levels_index.tsv       one row per table below: bait, fraction, what it is, size
   proteins.tsv           11,570 proteins: 30 % identity cluster, held-out block, gene, length
   sequences.fasta        the sequences those clusters were built from

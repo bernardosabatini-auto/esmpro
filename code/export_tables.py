@@ -152,11 +152,27 @@ def main():
     A.to_csv(f"{OUT}/proteins.tsv", sep="\t", index=False)
     print(f"proteins.tsv           {len(A)} proteins, with 30% identity cluster and held-out block", flush=True)
 
-    # data/ is gitignored, so the document lives in docs/ and is copied in beside the tables it describes.
+    # data/ is gitignored, so the documents live in the repo and are copied in beside the tables, where
+    # whoever receives the tarball will actually look for them.
     doc = f"{ROOT}/docs/DATA_EXPORT.md"
     if os.path.exists(doc):
         shutil.copy(doc, f"{OUT}/README.md")
         print("README.md              copied from docs/DATA_EXPORT.md", flush=True)
+    os.makedirs(f"{OUT}/docs", exist_ok=True)
+    DOCS = ["docs/DATA_EXPORT.md", "docs/DATA_EXPORT.pdf",
+            "docs/HSP_PULLDOWNS_OVERVIEW.md", "docs/HSP_PULLDOWNS_OVERVIEW.pdf",
+            "docs/PIPELINE.md",
+            "reports/campaign/hsp_mlp_campaign_report.md",
+            "reports/campaign/hsp_mlp_campaign_report.pdf"]
+    got = []
+    for rel in DOCS:
+        src = f"{ROOT}/{rel}"
+        if os.path.exists(src):
+            shutil.copy(src, f"{OUT}/docs/{os.path.basename(rel)}")
+            got.append(os.path.basename(rel))
+        else:
+            print(f"  MISSING, not copied: {rel}", flush=True)
+    print(f"docs/                  {len(got)} documents: {', '.join(got)}", flush=True)
     print(f"\nwrote {OUT}", flush=True)
 
 
