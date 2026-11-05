@@ -139,6 +139,21 @@ scaled 0–1. The campaign's models for the GA_22 / GA_24 pull-downs and partiti
 it. If you fit anything on these two runs, include `inj_pos` and `inj_pos²` as covariates and check whether
 your effect survives. It is not optional for the salt contrasts: salt was partly confounded with block.
 
+**`cond` is not the same shape in every run, and this is the sharpest edge here.** The key is the run's own
+design fields joined by `|`, in that run's order, so it differs between runs that otherwise look alike:
+
+| Run | `cond` format | Zero-salt, drug-free reference |
+|---|---|---|
+| `GA22_ip`, `GA22_sup` | `KCl\|stau` | `0\|0` |
+| `GA24_ip`, `GA24_sup` | `cof\|conc\|KCl` | `CTRL\|0\|0` |
+| `GA33_ip`, `GA33_input` | `bait\|stau\|temp` | `21A\|0\|35`, `24\|0\|35` |
+| `GA20_ip` | `KCl` | `0` |
+| `FS76_ip` | `Mg\|Li` | `0.25\|0` |
+
+Note that GA_22 and GA_24 run their salt in *opposite* positions: `60|0` is KCl 60 in GA_22, while in GA_24
+the same salt is `CTRL|0|60`. A selector written for one silently matches nothing on the other, so always
+read the conditions out of `samples.tsv` rather than assuming the format.
+
 **The drug arms are here but were not used.** `GA22_ip` contains staurosporine 0.1 / 1 / 10 µM, `GA24_ip`
 contains NAD and NADP at several concentrations, and `FS73_ip` / `FS76_ip` are drug screens throughout. The
 campaign used the drug-free arms only, because the drug effects on their own targets are large and specific
