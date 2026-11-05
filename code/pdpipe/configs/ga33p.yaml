@@ -1,0 +1,13 @@
+# GA_33 pre-IP lysate ("Proteome"), matched to the GA_33 pull-downs: the input each reaction was drawn from.
+# This is the fraction that lets enrichment (IP - input) be computed, and it is the campaign's abundance
+# covariate (`abundance_here` = GA33_input).
+name: GA33P
+title: GA_33 pre-IP lysate (input)
+format: diann
+source: pd_data/GA_33_Proteome_report_out.tsv
+pattern: 'GA_33_Proteome_(?P<bait>21A|24)_STAU_(?P<stau>\d+)_T_(?P<temp>\d+)_BR(?P<BR>\d+)_TR\d+'
+condition: [bait, stau, temp]
+numeric: []
+# ad08 found two input samples heavily contaminated; the campaign's reference input is the mean of the
+# other ten. They are kept in this table and flagged in the README rather than silently dropped.
+contrasts: {}

@@ -1,0 +1,15 @@
+# GA_33: DNAJA1 (21A) / DNAJB11 (24) pull-downs from lysate at 35/37/43 C, +/- 10 uM staurosporine.
+# 2 baits x 2 drug x 3 temperatures x 6 BR = 72 samples, each with 1-3 MS injections.
+# The campaign used the drug-free arms only; the drug arms are parsed here so the table is complete.
+name: GA33
+title: DNAJA1 / DNAJB11 pull-down, temperature x staurosporine (GA_33)
+format: diann
+source: pd_data/GA_33_report_out.tsv
+pattern: 'GA_33_(?P<bait>21A|24)_STAU_(?P<stau>\d+)_T_(?P<temp>\d+)_BR(?P<BR>\d+)_TR\d+'
+condition: [bait, stau, temp]
+numeric: []
+contrasts:
+  heat37_A1:  ["21A|0|37", "21A|0|35"]
+  heat43_A1:  ["21A|0|43", "21A|0|35"]
+  heat37_B11: ["24|0|37", "24|0|35"]
+  heat43_B11: ["24|0|43", "24|0|35"]
