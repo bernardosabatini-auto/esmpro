@@ -165,7 +165,9 @@ def main():
             "reports/campaign/hsp_mlp_campaign_report.md",
             "reports/campaign/hsp_mlp_campaign_report.pdf",
             "reports/additional/additional_text_10.md",
-            "reports/additional/additional_text_10.pdf"]
+            "reports/additional/additional_text_10.pdf",
+            "reports/additional/additional_text_11.md",
+            "reports/additional/additional_text_11.pdf"]
     got = []
     for rel in DOCS:
         src = f"{ROOT}/{rel}"
