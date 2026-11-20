@@ -184,13 +184,23 @@ What is open divides into questions for the bench and one measurement design iss
   and constant; signal is set entirely by step size. A 2 °C step gives signal-to-noise 1.3 and is wasted MS
   time, while 8 °C gives 5.8. The salt titration has not saturated at 120–150 mM, so no release midpoint can
   be fitted from the three points we have.
-- **Open questions for the lab:** whether salt is present during binding or only in the wash (this changes
-  the interpretation entirely), the units on NAD(P), whether equal volume or equal protein was injected, and
-  two supernatant blocks that failed.
+- **Salt is present during the incubation, not only in the wash** (confirmed by the lab, 19 November 2026).
+  The salt series is therefore a genuine equilibrium perturbation of binding rather than a measure of wash
+  stringency, which is what makes a per-protein ddG of binding a meaningful quantity at all. The partition
+  `ip - sup` is literally log2(bound/free), so a salt contrast is a ddG up to one additive constant per
+  contrast. The remaining protocol detail is whether the washes are at the incubation salt or at a common
+  salt; if the latter, the measured ddG is inflated by an off-rate term of the same sign.
+- **Open questions for the lab:** the units on NAD(P), whether equal volume or equal protein was injected,
+  and two supernatant blocks that failed.
 
-The largest single opportunity is temperature. The 43 °C data is measured beautifully (reliability 0.97,
-signal-to-noise 5.8), but 43 °C is still the foot of the melting curve for most proteins. Extending to
-40–60 °C in 4 °C steps, with a heat pulse followed by capture at a common temperature and a bait titration
-to control for competition, would yield a per-protein stability estimate — and one that reports client
+The largest single opportunity is temperature, and the reason is sharper than it first looked. The 43 °C
+data is measured beautifully (reliability 0.97, signal-to-noise 5.8), but within 35–43 °C every protein
+melting above about 45 °C stays native-dominated, and in that regime the response reports the unfolding
+enthalpy and is *mathematically insensitive to Tm*. No per-protein stability exists to be measured in this
+window at any precision — it is an identifiability problem, not a precision one. Extending to 40–60 °C in
+4 °C steps crosses the transition and is the only route to a per-protein Tm; a heat pulse followed by
+capture at a common temperature, with a bait titration to control for competition, would then report client
 recognition rather than aggregation, which is a different and potentially earlier event than classical
-thermal profiling measures.
+thermal profiling measures. `reports/additional/additional_text_10.md` works this through, and also
+establishes what the salt series can support: a per-protein ddG of binding that reproduces across two
+independent experiments at 95 % of the attainable limit.

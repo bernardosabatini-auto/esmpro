@@ -1,0 +1,18 @@
+# netscratch keep-alive for the esm_proae tree.
+# Install with:   crontab tools/keepalive.cron
+# Inspect with:   crontab -l
+# Check it ran:   tail logs/keepalive.log
+#
+# NOTE: a login-node crontab runs ONLY on the login node it was installed from
+# (boslogin08 at the time of writing). /var/spool/cron is local to each node, so if
+# that node is rebuilt the sweep stops silently -- logs/keepalive.log is the check.
+# Slurm's scrontab would survive that, but on this account every job must hold a GPU,
+# which is not worth it for a two-minute touch.
+SHELL=/bin/bash
+KEEPALIVE_ROOT=/n/netscratch/bsabatini_lab/Users/bsabatini/esm_proae
+
+# every day at 03:17 -- reset atime and mtime on every file and directory
+17 3 * * * bash $KEEPALIVE_ROOT/tools/keepalive.sh >/dev/null 2>&1
+
+# the 1st of each month at 04:17 -- also give the small irreplaceable files new inodes
+17 4 1 * * bash $KEEPALIVE_ROOT/tools/keepalive.sh --rewrite >/dev/null 2>&1
