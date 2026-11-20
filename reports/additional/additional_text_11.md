@@ -76,6 +76,33 @@ present, so "abolished" is accurate for two of the three and "weakened" for the 
 GET3, which works with this complex but is not part of it, shifts by only −0.081 and shows no Mg
 interaction (q = 0.58) — so the effect tracks the complex, not the pathway.
 
+### Where the effect sits, and where it does not
+
+Three further checks narrow it. The first corrects how this section read on first writing.
+
+**The BAG6 complex is not an enriched HSPB1 partner.** In the bound:free partition measured in GA_22 and
+GA_24, BAG6 sits at the 11th and 17th percentile, UBL4A at the 20th and 20th, GET4 at the 38th and 20th —
+all below the median, partitioning toward the free pool — while the bait itself is at the 88th and 85th.
+The DNAJA1 and DNAJB11 enrichments agree (12th to 24th percentile). The three are abundant enough to
+measure well, at the 70th to 80th percentile in the supernatant, but they are recovered roughly as
+background rather than as captured partners. So *lithium disrupts an HSPB1–BAG6 interaction*, which is how
+this result first read, is not supported. What is measured is how much BAG6 complex is recovered, and the
+likelier reading is that lithium changes something about the complex itself — its integrity, or its
+solubility in the lysate. Those partitions come from different lysates and buffers than FS_76, so they
+constrain the interpretation rather than settling it.
+
+**It is specific to lithium, not to being a drug screen.** FS_73 is the same bait, same lab, with three
+unrelated anticonvulsants. At 100 µM none of them moves the complex — for GET4 / UBL4A / BAG6,
+carbamazepine gives +0.048 / +0.190 / +0.023, lamotrigine +0.012 / +0.182 / −0.056, topiramate
++0.038 / +0.131 / −0.015, with every q ≥ 0.93 — against −1.2 to −1.4 log2 for lithium. The comparison is
+not dose-matched, 100 µM of an organic molecule against 10 mM of an ion, so it says nothing about relative
+potency. It says these three proteins do not simply wobble whenever something is added to an HSPB1
+pull-down, and that they are detected stably enough for a null to mean something.
+
+**The obvious mechanism is excluded.** GET3 — TRC40/ASNA1, the Mg²⁺-dependent ATPase that receives clients
+from this very complex, and the textbook place for a Li⁺/Mg²⁺ competition — shifts by only −0.081 with no
+Mg interaction. Whatever lithium is doing, it is not displacing Mg²⁺ at that nucleotide site.
+
 ![**Figure 1.** The BAG6 complex leaves the HSPB1 pull-down as lithium rises, and ten-fold Mg²⁺ blunts or abolishes it. Each panel is one subunit; the q value is for the Li × Mg interaction.](../figures/arms/f6_fs76_bag6.png)
 
 ![**Figure 2.** The same lithium trend measured in two disjoint halves of the replicates. The proteome-wide cloud is round — the profile carries no reproducible information — while three proteins sit far out on the diagonal. Both facts are true at once, and reporting only the first would have missed the second.](../figures/arms/f5_fs76_halves.png)
@@ -186,8 +213,11 @@ reliabilities against their pooled nulls, including the first pass of this analy
   the lab for; it would settle this.**
 - **What the NAD and NADP concentrations are.** They are bare numbers (0.6, 11, 15, 300) with no unit in
   any file name, treated here as µM. If that is wrong the labels are still correct but no dose reading is.
-- **Whether lithium acts on HSPB1 or on BAG6.** The pull-down measures the pair. A bait-free control, or
-  the reciprocal pull-down on BAG6, would separate them.
+- **Whether lithium reduces the complex's integrity or its abundance in the soluble pool.** Section 2.2
+  argues the effect is on the complex rather than on an interface with the bait, but FS_76 measured only the
+  pull-down — no supernatant, no input — so the free pool is unobserved. A supernatant fraction at each
+  lithium dose would separate "less of it is soluble" from "less of it sticks", and it is the single most
+  informative thing that could be added.
 - **Whether the effect is direct.** These are lysate incubations, so an intermediary is not excluded.
 
 # 5. What follows
@@ -197,10 +227,11 @@ reliabilities against their pooled nulls, including the first pass of this analy
    KCl 0 and 120 happened to run back to back; the cofactor arms are lost because they did not.
 2. **Record the acquisition order for every run**, including those that arrive pre-processed. Without it
    the check in section 3.3 is unavailable, which is why the FS_76 caveat above cannot be closed.
-3. **Follow the BAG6 result up directly.** A lithium dose series with a BAG6 pull-down as the bait, a
-   bait-free control at each lithium concentration, and a finer Mg²⁺ series would turn one specific,
-   reproducible, mechanistically coherent observation into a result. The Mg²⁺ competition is testable in
-   both directions: if it is ion competition, the half-effect lithium concentration should scale with Mg²⁺.
+3. **Follow the BAG6 result up directly, and collect the supernatant.** A lithium dose series with the
+   supernatant kept at every dose, a bait-free control at each lithium concentration, and a finer Mg²⁺
+   series would turn one specific and reproducible observation into a result. The Mg²⁺ competition is
+   testable quantitatively: if it is ion competition, the half-effect lithium concentration should scale
+   with Mg²⁺. The reciprocal pull-down on BAG6 would say whether HSPB1 is involved at all.
 4. **Repeat the cofactor arms at a single salt with randomised order.** Four arms and a control at one salt,
    properly randomised, would answer in one run what the current design cannot answer at all.
 
