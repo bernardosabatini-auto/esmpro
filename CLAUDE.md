@@ -1,5 +1,20 @@
 # ESM-ProteinAE — instructions for the Claude instance on the H200 cluster
 
+> ## THE DATA WAS DELETED ON 2026-11-20
+>
+> At the user's instruction, **all ESM-ProteinAE data was deleted** — `data/phase1_dataset/`
+> (1.4 TB, including `dataset_100k.h5`, `backbone_100k.h5`, `structures.tar.gz` and every
+> checkpoint), `data/esmfold2_fast/`, `data/esm2/`, `data/pdb/`, `data/afdb_clusters/`,
+> `data/casp/`, `data/ensembles/` and the three AFDB index files. `data/` is gitignored, so
+> **none of it is in git history.** `docs/DELETED_ESM_PROAE_DATA.md` holds the full file listing.
+>
+> The code, `ProteinAE_v1/` (decoder package and `ae_r1_d8_v1.ckpt`), the run reports and this
+> document were all kept. **Nothing in sections 4, 5, 8 or 9b can be run as written** until the
+> data is rebuilt or restored, and section 9b's claim that the dataset is reproducible from this
+> bundle is no longer true — see below.
+>
+> The HSP pull-down analysis in this same tree was untouched and still runs.
+
 You are picking up a working protein structure predictor. Read this fully before
 running anything. The project has lost three separate multi-day stretches to
 **silent measurement bugs** — no crash, no warning, plausible-looking curves. The
@@ -297,9 +312,11 @@ Shipped: `gate5_build_dataset.py` (splits and MMseqs2 clustering) and
 it also supplies `canonicalize_pyg_data`, which `gate6_extract_backbone.py`
 imports at runtime).
 
-Also shipped: **`data/phase1_dataset/structures.tar.gz`**, 2.36 GB, holding all
-99,903 source AFDB PDB files. The dataset IS therefore reproducible from this
-bundle. Extract only when you actually need a rebuild:
+**DELETED 2026-11-20.** `data/phase1_dataset/structures.tar.gz`, 2.36 GB, held all
+99,903 source AFDB PDB files, and it lived inside the deleted directory. **The dataset is
+therefore no longer reproducible from this bundle.** A rebuild now has to re-fetch the AFDB
+structures from source before `gate5_build_dataset.py` and `gate6_100k.py` can run. The
+instructions below are kept for when that source set exists again:
 
 ```bash
 cd $ESM_PROAE_ROOT/data/phase1_dataset
@@ -336,7 +353,7 @@ $ESM_PROAE_ROOT/
   data/phase1_dataset/
     dataset_100k.h5             32.7 GB, transferred separately
     backbone_100k.h5            797 MB, transferred separately, unused for now
-    structures.tar.gz           2.36 GB, 99,903 source PDBs — extract to rebuild
+    (ALL DELETED 2026-11-20 — see docs/DELETED_ESM_PROAE_DATA.md)
     smallscale_final_40k.pt     the inherited checkpoint
   docs/
     SMALLSCALE_HANDOFF.md       fuller write-up of the small-scale result

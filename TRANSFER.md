@@ -1,5 +1,11 @@
 # Transfer to the H200 cluster
 
+> **OBSOLETE AS OF 2026-11-20.** The data this document transfers was deleted at the user's
+> instruction — `dataset_100k.h5`, `backbone_100k.h5` and `smallscale_final_40k.pt` are all gone,
+> along with the rest of `data/phase1_dataset/`. `md5sum -c checksums.md5` will now FAIL on its
+> last two lines for the same reason. The verification command in section 4 cannot run. Kept for
+> the procedure, not the contents. See `docs/DELETED_ESM_PROAE_DATA.md`.
+
 Two parts: this bundle (106 MB) and two large data files (33.5 GB) kept outside
 it, so the Spark does not have to hold a second 33 GB copy.
 
